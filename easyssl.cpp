@@ -1,6 +1,4 @@
 #include "easyssl.h"
-#include <iostream>
-// stderr or stdlog or stdout
 
 void handle_error(const char * file, int lineno, const char * msg) {
     fprintf(stderr, "** %s:%i %s\n", file, lineno, msg);
@@ -40,106 +38,50 @@ int verify_callback(int preverify_ok, X509_STORE_CTX * ctx) {
     return preverify_ok;
 }
 
-// post_connection_check is implemented as a wrapper around
-// SSL_get_verify_result, which performs our extra peer cert checks.
-// It uses the reserved error code X509_V_ERR_APPLICATION_VERIFICATION to
-// indicate errors where there is no peer cert present or the cert presented
-// does not match the expected FQDN.
-// This function will return an error in the following circumstances:
-// * If no peer cert is found
-// * If it is called with a NULL second argument, i.e., if no FQDN is specified
-//   to compare against.
-// * If the dNSName fields found (if any) do not match the host arg and the
-//   commonName also doesn't match the host arg (if found)
-// * Any time the SSL_get_verify_result routine returns an error
-// Otherwise, X509_V_OK will be returned.
-// long post_connection_check(SSL * ssl, char * host) {
-//     X509 * cert;
-//     X509_NAME * subj;
-//     char data[256];
-//     int extcount;
-//     int ok = 0;
+int wildcmp(const char *wild, const char *string) {
+    // Written by Jack Handy - <A href="mailto:jakkhandy@hotmail.com">jakkhandy@hotmail.com</A>
+    const char *cp = 0, *mp = 0;
+    
+    while ((*string) && (*wild != '*')) {
+        if ((*wild != *string) && (*wild != '?')) {
+            return 0;
+        }
+        wild++;
+        string++;
+    }
+    
+    while (*string) {
+        if (*wild == '*') {
+            if (!*++wild) {
+                return 1;
+            }
+            mp = wild;
+            cp = string+1;
+        } else if ((*wild == *string) || (*wild == '?')) {
+            wild++;
+            string++;
+        } else {
+            wild = mp;
+            string = cp++;
+        }
+    }
 
-//     // Checking the return from SSL_get_peer_certificate here is not
-//     // structly necessary. With our example program, it is not possible
-//     // for it to return NULL. However, it is good form to check the
-//     // return since it can return NULL if the examples are modified
-//     // to enable anonymous ciphers or for the server to not require
-//     // a client certificate.
-//     if (!(cert = SSL_get_peer_certificate(ssl)) || !host)
-//         goto err_occurred;
-//     if ((extcount  = X509_get_ext_count(cert)) > 0) {
-//         int i;
-//         // iterate through the extensions and use the extension-specific
-//         // parsing routes to find all extensions that are subjectAltName field.
-//         for (i = 0; i < extcount; i++) {
-//             char * extstr;  // hold the extracted short name of extension
-//             X509_EXTENSION * ext;
+    while (*wild == '*') {
+        wild++;
+    }
+    return !*wild;
+}
 
-//             ext = X509_get_ext(cert, i);
-//             extstr = (char *)OBJ_nid2sn(OBJ_obj2nid(X509_EXTENSION_get_object(ext)));
-//             if (!strcmp(extstr, "subjectAltName")) {
-//                 int j;
-//                 unsigned char * data;
-//                 STACK_OF(CONF_VALUE) * val;
-//                 CONF_VALUE * nval;
-//                 X509V3_EXT_METHOD * meth;
-//                 void * ext_str = NULL;
-//                 // extract the X509V3_EXT_METHOD object from the extension.
-//                 // This object is a container of extension-specific function
-//                 // for manipulating the data within the extension.
-//                 if (!(meth = X509V3_EXT_get(ext)))
-//                     break;
-//                 data = ext->value->data;
-//                 // d2i and i2v functions convert the raw data in subjectAleName
-//                 // to a stack of CONF_VALUE objects. This is neccessary to make
-//                 // it simple to iterate over the several kinds of fields in the
-//                 // subjectAltName so that we may find the dNSName field(s).
-// #if (OPENSSL_VERSION_NUMBER > 0x00907000L)
-//                 if (meth->it)
-//                     ext_str = ASN1_item_d2i(NULL, &data, ext->value->length,
-//                                             ASN1_ITEM_ptr(meth->it));
-//                 else
-//                     ext_str = meth->d2i(NULL, &data, ext->value->length);
-// #else
-//                 ext_str = meth->d2i(NULL, &data, ext->value->length);
-// #endif
-//                 val = meth->i2v(meth, ext_str, NULL);
-//                 // Since a subjectAltName field may itself contain several
-//                 // fields, we must then iterate to find any dNSName fields.
-//                 // We check each member of this CONF_VALUE stack to see if we
-//                 // have a match for the host string in a dNSName field.
-//                 for (j = 0; j < sk_CONF_VALUE_num(val); j++) {
-//                     nval = sk_CONF_VALUE_value(val, j);
-//                     if (!strcmp(nval->name, "DNS") && !strcmp(nval->value, host))
-//                     {
-//                         ok = 1;
-//                         break;
-//                     }
-//                 }
-//             }
-//             // As soon as we find a match (host), we stop the iterations over
-//             // all the extensions.
-//             if (ok)
-//                 break;
-//         }
-//     }
-//     // pursue checking the commonName of the certificate if no match is found
-//     // in a dNSName field.
-//     if (!ok && (subj = X509_get_subject_name(cert)) &&
-//         X509_NAME_get_text_by_NID(subj, NID_commonName, data, 256) > 0) {
-//         data[255] = 0;
-//         if (strcasecmp(data, host) != 0)
-//             goto err_occurred;
-//     }
-//     X509_free(cert);
-//     return SSL_get_verify_result(ssl);
 
-// err_occurred:
-//     if (cert)
-//         X509_free(cert);
-//     return X509_V_ERR_APPLICATION_VERIFICATION;
-// }
+int FQDNMatch(std::vector<string> host_list, const char * fqdn) {
+    for (std::vector<string>::iterator it = host_list.begin(); it != host_list.end(); ++it) {
+        cout << "*it = " << *it << endl << "fqdn = " << fqdn << endl;
+        if (wildcmp((*it).c_str(), fqdn))
+            return 1;
+    }
+    return 0;
+}
+
 
 DH * dh512 = NULL;
 DH * dh1024 = NULL;
@@ -189,22 +131,42 @@ DH * tmp_dh_callback(SSL * ssl, int is_export, int keylength) {
 }
 
 //////////////////////////////////////////////////////////
-
-EasySSL_CTX::EasySSL_CTX(const char * version) {
-    // First, setup SSL_CTX;
-    if (!strcmp(version, "SSLv3")) {
-        ctx_ = SSL_CTX_new(SSLv3_method());
-    } else if (!strcmp(version, "TLSv1")) {
-        ctx_ = SSL_CTX_new(TLSv1_method());
-    } else if (!strcmp(version, "TLSv1.1")) {
-        ctx_ = SSL_CTX_new(TLSv1_1_method());
-    } else if (!strcmp(version, "Compatible")) {
-        ctx_ = SSL_CTX_new(SSLv23_method());
-    } else {
-        fprintf(stderr, "** illegal SSL/TLS version, it will run in compatible version");
-        ctx_ = SSL_CTX_new(SSLv23_method());
-    }
+EasySSL_CTX::EasySSL_CTX() {
+    ctx_ = NULL;
     bio_ = NULL;
+}
+
+void EasySSL_CTX::SetVersion(const char * version) {
+    printf("Version: %s\n", version);
+    if (!strcmp(version, "SSLv3_client")) {
+        ctx_ = SSL_CTX_new(SSLv3_client_method());
+    } else if (!strcmp(version, "TLSv1_client")) {
+        ctx_ = SSL_CTX_new(TLSv1_client_method());
+    } else if (!strcmp(version, "TLSv1.1_client")) {
+        ctx_ = SSL_CTX_new(TLSv1_1_client_method());
+    } else if (!strcmp(version, "Compatible_client")) {
+        ctx_ = SSL_CTX_new(SSLv23_client_method());
+        SSL_CTX_set_options(ctx_, SSL_OP_NO_SSLv2);
+    } else if (!strcmp(version, "SSLv3_server")) {
+        ctx_ = SSL_CTX_new(SSLv3_server_method());
+        SSL_CTX_set_options(ctx_, SSL_OP_SINGLE_DH_USE);
+        SSL_CTX_set_tmp_dh_callback(ctx_, tmp_dh_callback);
+    } else if (!strcmp(version, "TLSv1_server")) {
+        ctx_ = SSL_CTX_new(TLSv1_server_method());
+        SSL_CTX_set_options(ctx_, SSL_OP_SINGLE_DH_USE);
+        SSL_CTX_set_tmp_dh_callback(ctx_, tmp_dh_callback);
+    } else if (!strcmp(version, "TLSv1.1_server")) {
+        ctx_ = SSL_CTX_new(TLSv1_1_server_method());
+        SSL_CTX_set_options(ctx_, SSL_OP_SINGLE_DH_USE);
+        SSL_CTX_set_tmp_dh_callback(ctx_, tmp_dh_callback);
+    } else if (!strcmp(version, "Compatible_server")) {
+        ctx_ = SSL_CTX_new(SSLv23_server_method());
+        SSL_CTX_set_options(ctx_, SSL_OP_NO_SSLv2 | SSL_OP_SINGLE_DH_USE);
+        SSL_CTX_set_tmp_dh_callback(ctx_, tmp_dh_callback);
+    } else {
+        fprintf(stderr, "** illegal SSL/TLS version!\n");
+        exit(EXIT_FAILURE);
+    }
 }
 
 EasySSL_CTX::~EasySSL_CTX() {
@@ -215,12 +177,57 @@ EasySSL_CTX::~EasySSL_CTX() {
         BIO_free(bio_);
 }
 
-void EasySSL_CTX::Init_EasySSL() {
+void EasySSL_CTX::InitEasySSL() {
     init_OpenSSL();
     seed_prng();
 }
 
-int EasySSL_CTX::LoadConf() {
+char * GetConfString(const CONF * conf, const char * section, const char * key) {
+    char * ret;
+    if (!(ret = NCONF_get_string(conf, section, key))) {
+        fprintf(stderr, "Error finding \"%s\" in [%s]\n", key, section);
+        int_error("Errors finding string");
+    }
+    return ret;
+}
+
+int EasySSL_CTX::LoadConf(const char * conf_filename) {
+    long err = 0;
+    CONF * conf = NCONF_new(NCONF_default());
+    if (!NCONF_load(conf, conf_filename, &err)) {
+        if (err == 0)
+            int_error("Error opening configuration file");
+        else {
+            fprintf(stderr, "Error in %s on line %li\n", conf_filename, err);
+            int_error("Errors parsing configuration file");
+        }
+    }
+
+    SetVersion(GetConfString(conf, "SSLConf", "Version"));
+    SetVerifyMode(GetConfString(conf, "SSLConf", "VerifyMode"));
+    SetVerifyDepth(atoi(GetConfString(conf, "SSLConf", "VerifyDepth")));
+    SetCipherSuite(GetConfString(conf, "SSLConf", "CipherSuite"));
+
+    char * cafile = GetConfString(conf, "Verification", "CAFile");
+    char * cadir = GetConfString(conf, "Verification", "CADir");
+    if (!strcmp(cafile, ""))
+        cafile = NULL;
+    if (!strcmp(cadir, ""))
+        cadir = NULL;
+    LoadCACertLocations(cafile, cadir);
+    LoadOwnCert(GetConfString(conf, "Verification", "OwnCert"));
+    LoadOwnPrivateKey(GetConfString(conf, "Verification", "OwnPrivateKey"));
+
+    char * host_list_str = GetConfString(conf, "Verification", "HostList");
+    
+    char * pch = strtok (host_list_str, "|");
+    while (pch) {
+        printf("%s\n", pch);
+        host_list_.push_back(string(pch));
+        pch = strtok(NULL, "|");
+    }
+    
+    
     return 0;
 }
 
@@ -254,17 +261,19 @@ int EasySSL_CTX::LoadCACertLocations(const char * cA_file, const char * cA_dir) 
     return ret_val;
 }
 
-void EasySSL_CTX::SetVerifyMode(int mode) {
-    return SSL_CTX_set_verify(ctx_, mode, verify_callback);
+void EasySSL_CTX::SetVerifyMode(const char * verify_mode) {
+    int mode;
+    if (!strcmp(verify_mode, "AUTH_NONE"))
+        mode = SSL_VERIFY_NONE;
+    if (!strcmp(verify_mode, "AUTH_REQUEST"))
+        mode = SSL_VERIFY_PEER;
+    if (!strcmp(verify_mode, "AUTH_REQUIRE"))
+        mode = SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
+    SSL_CTX_set_verify(ctx_, mode, verify_callback);
 }
 
 void EasySSL_CTX::SetVerifyDepth(int depth = 9) {
     return SSL_CTX_set_verify_depth(ctx_, depth);
-}
-
-// return the new options bitmask after adding options
-long EasySSL_CTX::SetOptions(long options) {
-    return SSL_CTX_set_options(ctx_, options);
 }
 
 // returns 1 if any cipher could be selected and 0 on complete failure
@@ -276,8 +285,8 @@ int EasySSL_CTX::SetCipherSuite(const char * cipher_list) {
     return ret_val;
 }
 
-void EasySSL_CTX::SetTmpDHCallback() {
-    SSL_CTX_set_tmp_dh_callback(ctx_, tmp_dh_callback);
+void EasySSL_CTX::SetHostList(vector<string> host_list) {
+    host_list_ = host_list;
 }
 
 // returns 1 on success, otherwise 0.
@@ -307,7 +316,9 @@ EasySSL * EasySSL_CTX::AcceptSocketConnection() {
         int_error("Error creating new SSL");
     SSL_set_accept_state(ssl);
     SSL_set_bio(ssl, client, client);
-    return new EasySSL(ssl);
+    EasySSL * easyssl = new EasySSL(ssl);
+    easyssl->SetHostList(host_list_);
+    return easyssl;
 }
 
 EasySSL * EasySSL_CTX::SocketConnect(const char * address) {
@@ -325,7 +336,9 @@ EasySSL * EasySSL_CTX::SocketConnect(const char * address) {
         int_error("Error creating new SSL");
     // specify a BIO for SSL object to use.
     SSL_set_bio(ssl, bio, bio);
-    return new EasySSL(ssl);
+    EasySSL * easyssl = new EasySSL(ssl);
+    easyssl->SetHostList(host_list_);
+    return easyssl;
 }
 
 ////////////////////////////////////////////////////////////
@@ -342,6 +355,10 @@ EasySSL::~EasySSL() {
         SSL_free(ssl_);
 }
 
+void EasySSL::SetHostList(vector<string> host_list) {
+    host_list_ = host_list;
+}
+
 // on success, return 1, otherwise 0;
 int EasySSL::AcceptSSLConnection() {
     int val = SSL_accept(ssl_);
@@ -351,6 +368,13 @@ int EasySSL::AcceptSSLConnection() {
         fprintf(stderr, "SSL_get_error(ssl_, val) = %d", SSL_get_error(ssl_, val));
         return 0;
     }
+    long post_err;
+    if ((post_err = PostConnectionCheck()) != X509_V_OK) {
+        fprintf(stderr, "-Error: peer certificate: %s\n",
+            X509_verify_cert_error_string(post_err));
+        int_error("Error checking SSL object after connection");
+        return 0;
+    }
     return 1;
 }
 
@@ -358,11 +382,114 @@ int EasySSL::SSLConnect() {
     int val = SSL_connect(ssl_);
     if(val <= 0) {
         fprintf(stderr, "val = %d\n", val);
-        int_error("Error connecting SSL object");
+        int_error("Error connecting SSL connection");
         fprintf(stderr, "SSL_get_error(ssl_, val) = %d", SSL_get_error(ssl_, val));
         return 0;
     }
+
+    long post_err;
+    if ((post_err = PostConnectionCheck()) != X509_V_OK) {
+        fprintf(stderr, "-Error: peer certificate: %s\n",
+            X509_verify_cert_error_string(post_err));
+        int_error("Error checking SSL object after connection");
+        return 0;
+    }
+    
     return 1;
+}
+
+// post_connection_check is implemented as a wrapper around
+// SSL_get_verify_result, which performs our extra peer cert checks.
+// It uses the reserved error code X509_V_ERR_APPLICATION_VERIFICATION to
+// indicate errors where there is no peer cert present or the cert presented
+// does not match the expected FQDN.
+// This function will return an error in the following circumstances:
+// * If no peer cert is found
+// * If it is called with a NULL second argument, i.e., if no FQDN is specified
+//   to compare against.
+// * If the dNSName fields found (if any) do not match the host arg and the
+//   commonName also doesn't match the host arg (if found)
+// * Any time the SSL_get_verify_result routine returns an error
+// Otherwise, X509_V_OK will be returned.
+long EasySSL::PostConnectionCheck() {
+    X509 * cert;
+    X509_NAME * subj;
+    char data[256];
+    int extcount;
+    int ok = 0;
+
+    cout << "in post connection check" << endl;
+    for (vector<string>::iterator it = host_list_.begin(); it != host_list_.end(); it++) {
+        cout << *it << endl;
+    }
+
+    
+    // no cert, no check
+    if (! (cert = SSL_get_peer_certificate(ssl_)))
+        return SSL_get_verify_result(ssl_);
+
+    if (!host_list_.size())
+        goto err_occurred;
+    if ((extcount  = X509_get_ext_count(cert)) > 0) {
+        int i;
+        // iterate through the extensions and use the extension-specific
+        // parsing routes to find all extensions that are subjectAltName field
+        for (i = 0; i < extcount; i++) {
+            char * extstr;  // hold the extracted short name of extension
+            X509_EXTENSION * ext;
+            ext = X509_get_ext(cert, i);
+            extstr = (char *)OBJ_nid2sn(OBJ_obj2nid(X509_EXTENSION_get_object(ext)));
+            if (!strcmp(extstr, "subjectAltName")) {
+                int j;
+                const unsigned char * data;
+                STACK_OF(CONF_VALUE) * val;
+                CONF_VALUE * nval;
+                const X509V3_EXT_METHOD * meth;
+                void * ext_str = NULL;
+                // extract the X509V3_EXT_METHOD object from the extension.
+                // This object is a container of extension-specific function
+                // for manipulating the data within the extension.
+                if (!(meth = X509V3_EXT_get(ext)))
+                    break;
+                data = ext->value->data;
+                // d2i and i2v functions convert the raw data in subjectAleName
+                // to a stack of CONF_VALUE objects. This is neccessary to make
+                // it simple to iterate over the several kinds of fields in the
+                // subjectAltName so that we may find the dNSName field(s).
+                if (meth->it)
+                    ext_str = ASN1_item_d2i(NULL, &data, ext->value->length,
+                                            ASN1_ITEM_ptr(meth->it));
+                else
+                    ext_str = meth->d2i(NULL, &data, ext->value->length);
+                val = meth->i2v(meth, ext_str, NULL);
+                // Since a subjectAltName field may itself contain several
+                // fields, we must then iterate to find any dNSName fields.
+                // We check each member of this CONF_VALUE stack to see if we
+                // have a match for the host string in a dNSName field.
+                for (j = 0; j < sk_CONF_VALUE_num(val); j++) {
+                    nval = sk_CONF_VALUE_value(val, j);
+                    if (!strcmp(nval->name, "DNS") && FQDNMatch(host_list_, nval->value))
+                    {
+                        ok = 1;
+                        break;
+                    }
+                }
+            }
+            // As soon as we find a match (host), we stop the iterations over
+            // all the extensions.
+            if (ok)
+                break;
+        }
+    }
+    if (!ok)
+        goto err_occurred;
+    X509_free(cert);
+    return SSL_get_verify_result(ssl_);
+
+err_occurred:
+    if (cert)
+        X509_free(cert);
+    return X509_V_ERR_APPLICATION_VERIFICATION;
 }
 
 int EasySSL::GetShutdown() {
@@ -384,13 +511,3 @@ int EasySSL::Read(void * buf, int num) {
 int EasySSL::Write(const void * buf, int num) {
     return SSL_write(ssl_, buf, num);
 }
-
-/////////////////////////////////////////////////////////
-
-
-    // long err = post_connection_check(ssl, SERVER);
-    // if (err != X509_V_OK) {
-    //     fprintf(stderr, "-Error: peer certificate: %s\n",
-    //             X509_verify_cert_error_string(err));
-    //     int_error("Error checking SSL object after connection");
-    // }

@@ -1,0 +1,12 @@
+[SSLConf]
+Version = Compatible_server # SSLv3, TLSv1, TLSv1.1, TLSv1.2, Compatible
+VerifyMode = CLIENT_AUTH_REQUIRE # CLIENT_AUTH_NONE, CLIENT_AUTH_REQUEST, CLIENT_AUTH_REQUIRE
+VerifyDepth = 9;
+CipherSuite = ALL:!LOW:!EXP:!MD5:!aNULL:@STRENGTH
+
+[Verification]
+OwnCert = server.pem
+OwnPrivateKey = serverprk.pem
+CAFile = rootcert.pem
+CADir =
+HostList = *.zork.org|*.google.com|www.qq.com|mail.163.com

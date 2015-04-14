@@ -1,0 +1,24 @@
+[ req ]
+default_bits		= 2048
+default_keyfile 	= privatekey.pem
+default_md          = sha1
+
+prompt              = no
+distinguished_name	= req_distinguished_name
+x509_extensions		= req_extensions
+
+[ req_distinguished_name ]
+countryName            = US
+stateOrProvinceName    = Virginia
+localityName           = Fairfax
+organizationName       = Zork.org
+commonName             = splat.zork.org
+emailAddress           = splat@zork.org
+
+[ req_extensions ]
+basicConstraints = CA:false
+subjectAltName = DNS:splat.zork.org,email:copy
+
+[ certificate_extensions ]
+basicConstraints = CA:false
+subjectAltName = DNS:splat.zork.org,email:copy

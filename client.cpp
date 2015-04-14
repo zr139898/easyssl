@@ -2,26 +2,28 @@
 #include <iostream>
 using namespace std;
 
-#define VERSION "Compatible"
+#define VERSION "Compatible_client"
 #define CLIENTCERT "client.pem"
 #define CLIENTPRK "clientprk.pem"
 #define CAFILE "rootcert.pem"
 #define CADIR NULL
-#define VERIFY_MODE SSL_VERIFY_PEER
+#define VERIFY_MODE "AUTH_REQUEST"
 #define CIPHER_LIST "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH"
 #define ADDRESS "splat.zork.org:6001"
 
 int main(void) {
-    EasySSL_CTX::Init_EasySSL();
-    EasySSL_CTX ctx(VERSION);
-    fprintf(stderr, "ctx_ = %p, bio_ = %p", ctx.ctx_, ctx.bio_);
-    ctx.LoadCACertLocations(CAFILE, CADIR);
-    ctx.LoadOwnCert(CLIENTCERT);
-    ctx.LoadOwnPrivateKey(CLIENTPRK);
-    ctx.SetVerifyMode(VERIFY_MODE);
-    ctx.SetVerifyDepth(4);
-    ctx.SetOptions(SSL_OP_NO_SSLv2);
-    ctx.SetCipherSuite(CIPHER_LIST);
+    EasySSL_CTX::InitEasySSL();
+    EasySSL_CTX ctx;
+
+    ctx.LoadConf("clientconf.cnf");
+
+    // ctx.SetVersion(VERSION);
+    // ctx.SetVerifyMode(VERIFY_MODE);
+    // ctx.SetVerifyDepth(4);
+    // ctx.SetCipherSuite(CIPHER_LIST);
+    // ctx.LoadCACertLocations(CAFILE, CADIR);
+    // ctx.LoadOwnCert(CLIENTCERT);
+    // ctx.LoadOwnPrivateKey(CLIENTPRK);
     
     EasySSL * easyssl = ctx.SocketConnect(const_cast<char *>(ADDRESS));
     easyssl->SSLConnect();
