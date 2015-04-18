@@ -28,7 +28,9 @@ using namespace std;
     } while (0)
 #endif
 
-#define int_error(msg) handle_error(__FILE__, __LINE__, msg)
+#define handle_error(msg) {fprintf(stderr, "** %s:%i %s\n", __FILE__, __LINE__, msg); \
+    ERR_print_errors_fp(stderr); \
+    exit(-1);}
 
 class EasySSL_CTX;
 class EasySSL;
@@ -45,7 +47,7 @@ class EasySSL_CTX {
 public:
     SSL_CTX * ctx_;
     BIO * bio_;
-    vector<string> host_list_;
+    vector<string> acc_san_;
     EasySSL_CTX();
     ~EasySSL_CTX();
     static void InitEasySSL();  // called only once
@@ -57,7 +59,7 @@ public:
     void SetVerifyMode(const char * verify_mode);
     void SetVerifyDepth(int depth);
     int SetCipherSuite(const char * cipher_list);
-    void SetHostList(vector<string> host_list);
+    void SetHostList(vector<string> acc_san);
     
     int LoadOwnCert(const char * cert_file_name);
     int LoadOwnPrivateKey(const char * private_key_file_name);
@@ -71,12 +73,12 @@ public:
 class EasySSL {
 public:
     SSL * ssl_;
-    vector<string> host_list_;
+    vector<string> acc_san_;
     
     EasySSL(SSL * ssl);
     EasySSL(const EasySSL & easyssl);
     ~EasySSL();
-    void SetHostList(vector<string> host_list);
+    void SetHostList(vector<string> acc_san);
     int AcceptSSLConnection();
     int SSLConnect();
     long PostConnectionCheck();

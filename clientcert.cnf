@@ -19,6 +19,6 @@ emailAddress           = shell@zork.org
 basicConstraints = CA:false
 subjectAltName = email:copy
 
-[ certificate_extensions ]
+[ usr_cert_ext ]
 basicConstraints = CA:false
 subjectAltName = email:copy

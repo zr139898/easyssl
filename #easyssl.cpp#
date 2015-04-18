@@ -370,6 +370,8 @@ int EasySSL::AcceptSSLConnection() {
         fprintf(stderr, "SSL_get_error(ssl_, val) = %d", SSL_get_error(ssl_, val));
         return 0;
     }
+    if (!CRLCheck())
+        
     long post_err;
     if ((post_err = PostConnectionCheck()) != X509_V_OK) {
         fprintf(stderr, "-Error: peer certificate: %s\n",

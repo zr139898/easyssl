@@ -1,0 +1,2 @@
+V	160413162620Z		01	unknown	/C=US/ST=Virginia/L=Fairfax/O=Zork.org/OU=Server Division/CN=Server CA/emailAddress=serverca@zork.org
+V	160413164110Z		02	unknown	/C=US/ST=Virginia/L=Fairfax/O=Zork.org/CN=shell.zork.org/emailAddress=shell@zork.org

@@ -5,8 +5,8 @@ VerifyDepth = 9;
 CipherSuite = ALL:!LOW:!EXP:!MD5:!aNULL:@STRENGTH
 
 [Verification]
-OwnCert = client.pem
-OwnPrivateKey = clientprk.pem
-CAFile = rootcert.pem
+OwnCert = clientcert.pem
+OwnPrivateKey = clientkey.pem
+CAFile = rootCAcert.pem
 CADir =
-HostList = splat.zork.org
+AcceptableSubjectAltName = splat.zork.org

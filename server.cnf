@@ -5,8 +5,8 @@ VerifyDepth = 9;
 CipherSuite = ALL:!LOW:!EXP:!MD5:!aNULL:@STRENGTH
 
 [Verification]
-OwnCert = server.pem
-OwnPrivateKey = serverprk.pem
-CAFile = rootcert.pem
+OwnCert = servercert.pem
+OwnPrivateKey = serverkey.pem
+CAFile = rootCAcert.pem
 CADir =
-HostList = *.zork.org|*.google.com|www.qq.com|mail.163.com
+AcceptableSubjectAltName = *@zork.org

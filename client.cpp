@@ -15,7 +15,7 @@ int main(void) {
     EasySSL_CTX::InitEasySSL();
     EasySSL_CTX ctx;
 
-    ctx.LoadConf("clientconf.cnf");
+    ctx.LoadConf("client.cnf");
 
     // ctx.SetVersion(VERSION);
     // ctx.SetVerifyMode(VERIFY_MODE);
