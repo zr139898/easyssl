@@ -54,13 +54,17 @@ int THREAD_cleanup(void) {
 //////////////////////////////////////////////////////////////////////
 
 void init_OpenSSL(void) {
-    if (!THREAD_setup() || !SSL_library_init()) {
-        fprintf(stderr, "** OpenSSL initialization failed!\n");
-        exit(-1);
-    }
+    SSL_library_init();
     OpenSSL_add_all_algorithms();
-    ERR_load_crypto_strings();
     SSL_load_error_strings();
+    if (!THREAD_setup())
+        handle_error("OpenSSL thread setup failed!\n");
+}
+
+void free_OpenSSL(void) {
+    EVP_cleanup();
+    ERR_free_strings();
+    THREAD_cleanup();
 }
 
 void seed_prng(void) {
@@ -218,7 +222,7 @@ void EasySSL_CTX::SetVersion(const char * version) {
     }
 }
 
-EasySSL_CTX::~EasySSL_CTX() {
+EasySSL_CTX::~EasySSL_CTX(void) {
     fprintf(stderr, "ctx_ = %p, bio_ = %p\n", ctx_, bio_);
     if (ctx_)
         SSL_CTX_free(ctx_);
@@ -226,9 +230,13 @@ EasySSL_CTX::~EasySSL_CTX() {
         BIO_free(bio_);
 }
 
-void EasySSL_CTX::InitEasySSL() {
+void EasySSL_CTX::InitEasySSL(void) {
     init_OpenSSL();
     seed_prng();
+}
+
+void EasySSL_CTX::FreeEasySSL(void) {
+    free_OpenSSL();
 }
 
 char * GetConfString(const CONF * conf, const char * section, const char * key) {

@@ -45,5 +45,7 @@ int main(void) {
         easyssl->Clear();
     // delete ssl;
     cout << "Connection Closed" << endl;
+
+    EasySSL_CTX::FreeEasySSL();
     return 0;
 }

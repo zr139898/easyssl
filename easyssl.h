@@ -68,9 +68,6 @@ int THREAD_cleanup(void);
 // Multithread Support end
 //////////////////////////////////////////////////////////////////////
 
-
-
-
 #define handle_error(msg) {fprintf(stderr, "** %s:%i %s\n", __FILE__, __LINE__, msg); \
     ERR_print_errors_fp(stderr); \
     exit(-1);}
@@ -81,7 +78,7 @@ class EasySSL_CTX;
 class EasySSL;
 
 void init_OpenSSL(void);
-
+void free_OpenSSL(void);
 void seed_prng(void);
 
 int verify_callback(int preverify_ok, X509_STORE_CTX * ctx);
@@ -96,7 +93,10 @@ public:
     const char * cRL_file_;
     EasySSL_CTX();
     ~EasySSL_CTX();
+    
+    // Call InitEasySSL initially and FreeEasySSL before exiting
     static void InitEasySSL();  // called only once
+    static void FreeEasySSL();  // called only once
     
     // provide two options: conf file or using the function for settings.
     int LoadConf(const char * conf_filename);

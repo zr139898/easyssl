@@ -64,6 +64,7 @@ int main(void) {
         easyssl = ctx.AcceptSocketConnection();
         THREAD_CREATE(tid, server_thread, easyssl);
     }
+    EasySSL_CTX::FreeEasySSL();
     return 0;
 }
 
