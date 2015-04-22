@@ -29,21 +29,19 @@ int main(void) {
     easyssl->SSLConnect();
     
     fprintf(stderr, "Connection Opened\n");
-    int err, nwritten;
+    int len, len_written;
     char buf[80];
 
     while (1) {
         if (!fgets(buf, sizeof(buf), stdin))
             break;
-        for (nwritten = 0; nwritten < sizeof(buf); nwritten += err) {
-            err = easyssl->Write(buf + nwritten, sizeof(buf) - nwritten);
+        for (len_written = 0; len_written < sizeof(buf); len_written += len) {
+            len = easyssl->Write(buf + len_written, sizeof(buf) - len_written);
         }
     }
-    if (!(err <= 0))
-        easyssl->Shutdown();
-    else
-        easyssl->Clear();
-    // delete ssl;
+    easyssl->Shutdown();
+    delete easyssl;
+    
     cout << "Connection Closed" << endl;
 
     EasySSL_CTX::FreeEasySSL();

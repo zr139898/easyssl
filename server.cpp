@@ -16,24 +16,23 @@ void THREAD_CC server_thread(void * arg) {
 #ifndef WIN32
     pthread_detach(pthread_self());
 #endif
-    ssl->AcceptSSLConnection();
+    ssl->SSLAccept();
     fprintf(stderr, "Connection opened.\n");
     
-    int err, nread;
+    int len, len_read;
     char buf[80];
     
     do {
-        for (nread = 0; nread < sizeof(buf); nread += err) {
-            err = ssl->Read(buf + nread, sizeof(buf) - nread);
-            if (err <= 0)
+        for (len_read = 0; len_read < sizeof(buf); len_read += len) {
+            len = ssl->Read(buf + len_read, sizeof(buf) - len_read);
+            if (len <= 0)
                 break;
+            printf("%s", buf);
         }
-        fprintf(stderr, "%s", buf);
-    } while (err > 0);
-    if ((ssl->GetShutdown() & SSL_RECEIVED_SHUTDOWN) ? 1 : 0)
-        ssl->Shutdown();
-    else
-        ssl->Clear();
+    } while (len > 0);
+    
+    ssl->Shutdown();
+    
     fprintf(stderr, "Connection closed.\n");
     delete ssl;
     ERR_remove_state(0);

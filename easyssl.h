@@ -80,19 +80,19 @@ void seed_prng(void);
 int verify_callback(int preverify_ok, X509_STORE_CTX * ctx);
 
 // EasySSL_CTX objects server as containers for settings for the
-// SSL/TLS connection to be made by a programs.
-// It's also used to establish an underlying TCP/IP socket connection for the SSL/TLS to use
+// TLS/SSL connection to be made by a programs.
+// It's also used to establish an TCP/IP socket connection for the TLS/SSL to use as the underlying communication channel
 class EasySSL_CTX;
-// A wrapper around an SSL/TLS connection.
-// used to make an SSL/TLS handshake, do I/O operations through the
-// SSL/TLS connection, and shutdown the connection.
+// A wrapper around an TLS/SSL connection.
+// used to make an TLS/SSL handshake, do I/O operations through the
+// TLS/SSL connection, and shutdown the connection.
 class EasySSL;
 
 class EasySSL_CTX {
 private:
     SSL_CTX * ctx_;
     BIO * bio_;  // for server, holds the listening socket
-    vector<string> acc_san_;
+    vector<string> acc_san_;  // hold the AcceptableSubjectAltName in confile
     const char * cA_file_;
     const char * cA_dir_;
     const char * cRL_file_;
@@ -106,37 +106,44 @@ public:
     ~EasySSL_CTX();
     
     // provide two options: conf file or using the function for settings.
-    int LoadConf(const char * conf_filename);
+    void LoadConf(const char * conf_filename);
 
     void SetVersion(const char * version);  
     void SetAuthentication(const char * auth);
-    int SetCipherSuite(const char * cipher_list);
+    void SetCipherSuite(const char * cipher_list);
     void SetSAN(vector<string> acc_san);
     void SetCRLFile(const char * cRL_file);
     
-    int LoadCACertLocations(const char * cA_file, const char * cA_dir);
+    void LoadCACertLocations(const char * cA_file, const char * cA_dir);
     // call the two following functions only if the entity has a certificate
-    int LoadOwnCert(const char * cert_file_name);  
-    int LoadOwnPrivateKey(const char * private_key_file_name);
+    void LoadOwnCert(const char * cert_file_name);  
+    void LoadOwnPrivateKey(const char * private_key_file_name);
     
     // for server, create a listening TCP/IP socket and binding the port to it.
-    int CreateListenSocket(const char * host_port);
+    void CreateListenSocket(const char * host_port);
     // for server, blocks and awaits an incoming TCP/IP socket connection, and
-    // returns an EasySSL object which uses this socket connection and inherits    // the setting of this EasySSL_CTX
+    // returns an EasySSL object which uses this socket connection as
+    // the underlying communication channel and inherits the setting of
+    // this EasySSL_CTX
     EasySSL * AcceptSocketConnection();
     // for client, attempt to establish a TCP/IP socket connection to remote
     // server, and returns an EasySSL object which uses this socket connection
-    // and inherits the setting of this EasySSL_CTX
+    // as the underlying communication channel and inherits the setting of
+    // this EasySSL_CTX
     EasySSL * SocketConnect(const char * address);
 };
 
 class EasySSL {
 private:
     SSL * ssl_;
-    vector<string> acc_san_;
+    vector<string> acc_san_; // hold the AcceptableSubjectAltName in conf file
     const char * cA_file_;
     const char * cA_dir_;
     const char * cRL_file_;
+    int CRLCheck();
+    // Check the subjectAltName extensions in the peer certificate against
+    // AcceptableSubjectAltName in the conf file
+    long SANCheck();
 
 public:
     EasySSL(SSL * ssl);
@@ -145,14 +152,13 @@ public:
     void SetSAN(vector<string> acc_san);
     void SetCA(const char * cA_file, const char * cA_dir);
     void SetCRLFile(const char * cRL_file);
+
+    // for server, blocks and waits for a client to initiate a TLS/SSL handshake.
+    void SSLAccept();
+    // for client, initiates a TLS/SSL handshake with a server.
+    void SSLConnect();
+    void Shutdown();
     
-    int AcceptSSLConnection();
-    int SSLConnect();
-    int CRLCheck();
-    long PostConnectionCheck();
-    int Shutdown();
-    int GetShutdown();
-    int Clear();
     int Read(void * buf, int num);
     int Write(const void * buf, int num);
 };
