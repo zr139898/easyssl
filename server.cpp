@@ -48,12 +48,12 @@ int main(void) {
 
     ctx.LoadConf("server.cnf");
     // ctx.SetVersion(VERSION);
-    // ctx.SetVerifyMode(VERIFY_MODE);
-    // ctx.SetVerifyDepth(4);
+    // ctx.SetAuthentication(VERIFY_MODE);
     // ctx.SetCipherSuite(CIPHER_LIST);
     // ctx.LoadCACertLocations(CAFILE, CADIR);
     // ctx.LoadOwnCert(SERVERCERT);
     // ctx.LoadOwnPrivateKey(SERVERPRK);
+    // ctx.SetCRLFile(CRLFILE);
 
     ctx.CreateListenSocket(const_cast<char *>(PORT));
     

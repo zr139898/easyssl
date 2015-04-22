@@ -261,8 +261,7 @@ int EasySSL_CTX::LoadConf(const char * conf_filename) {
     }
 
     SetVersion(GetConfString(conf, "SSLConf", "Version"));
-    SetVerifyMode(GetConfString(conf, "SSLConf", "VerifyMode"));
-    SetVerifyDepth(atoi(GetConfString(conf, "SSLConf", "VerifyDepth")));
+    SetAuthentication(GetConfString(conf, "SSLConf", "Authentication"));
     SetCipherSuite(GetConfString(conf, "SSLConf", "CipherSuite"));
 
     char * cafile = GetConfString(conf, "Verification", "CAFile");
@@ -323,19 +322,15 @@ int EasySSL_CTX::LoadCACertLocations(const char * cA_file, const char * cA_dir) 
     return ret_val;
 }
 
-void EasySSL_CTX::SetVerifyMode(const char * verify_mode) {
+void EasySSL_CTX::SetAuthentication(const char * auth) {
     int mode;
-    if (!strcmp(verify_mode, "AUTH_NONE"))
+    if (!strcmp(auth, "AUTH_NONE"))
         mode = SSL_VERIFY_NONE;
-    if (!strcmp(verify_mode, "AUTH_REQUEST"))
+    if (!strcmp(auth, "AUTH_REQUEST"))
         mode = SSL_VERIFY_PEER;
-    if (!strcmp(verify_mode, "AUTH_REQUIRE"))
+    if (!strcmp(auth, "AUTH_REQUIRE"))
         mode = SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
     SSL_CTX_set_verify(ctx_, mode, verify_callback);
-}
-
-void EasySSL_CTX::SetVerifyDepth(int depth = 9) {
-    return SSL_CTX_set_verify_depth(ctx_, depth);
 }
 
 // returns 1 if any cipher could be selected and 0 on complete failure

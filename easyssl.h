@@ -74,57 +74,71 @@ int THREAD_cleanup(void);
 
 using namespace std;
 
-class EasySSL_CTX;
-class EasySSL;
-
 void init_OpenSSL(void);
 void free_OpenSSL(void);
 void seed_prng(void);
-
 int verify_callback(int preverify_ok, X509_STORE_CTX * ctx);
 
+// EasySSL_CTX objects server as containers for settings for the
+// SSL/TLS connection to be made by a programs.
+// It's also used to establish an underlying TCP/IP socket connection for the SSL/TLS to use
+class EasySSL_CTX;
+// A wrapper around an SSL/TLS connection.
+// used to make an SSL/TLS handshake, do I/O operations through the
+// SSL/TLS connection, and shutdown the connection.
+class EasySSL;
+
 class EasySSL_CTX {
-public:
+private:
     SSL_CTX * ctx_;
-    BIO * bio_;
+    BIO * bio_;  // for server, holds the listening socket
     vector<string> acc_san_;
     const char * cA_file_;
     const char * cA_dir_;
     const char * cRL_file_;
-    EasySSL_CTX();
-    ~EasySSL_CTX();
-    
-    // Call InitEasySSL initially and FreeEasySSL before exiting
+
+public:
+    // Application will call InitEasySSL initially and FreeEasySSL before exiting
     static void InitEasySSL();  // called only once
     static void FreeEasySSL();  // called only once
+
+    EasySSL_CTX();
+    ~EasySSL_CTX();
     
     // provide two options: conf file or using the function for settings.
     int LoadConf(const char * conf_filename);
 
-    void SetVersion(const char * version);
-    void SetVerifyMode(const char * verify_mode);
-    void SetVerifyDepth(int depth);
+    void SetVersion(const char * version);  
+    void SetAuthentication(const char * auth);
     int SetCipherSuite(const char * cipher_list);
     void SetSAN(vector<string> acc_san);
     void SetCRLFile(const char * cRL_file);
     
-    int LoadOwnCert(const char * cert_file_name);
-    int LoadOwnPrivateKey(const char * private_key_file_name);
     int LoadCACertLocations(const char * cA_file, const char * cA_dir);
-        
+    // call the two following functions only if the entity has a certificate
+    int LoadOwnCert(const char * cert_file_name);  
+    int LoadOwnPrivateKey(const char * private_key_file_name);
+    
+    // for server, create a listening TCP/IP socket and binding the port to it.
     int CreateListenSocket(const char * host_port);
+    // for server, blocks and awaits an incoming TCP/IP socket connection, and
+    // returns an EasySSL object which uses this socket connection and inherits    // the setting of this EasySSL_CTX
     EasySSL * AcceptSocketConnection();
+    // for client, attempt to establish a TCP/IP socket connection to remote
+    // server, and returns an EasySSL object which uses this socket connection
+    // and inherits the setting of this EasySSL_CTX
     EasySSL * SocketConnect(const char * address);
 };
 
 class EasySSL {
-public:
+private:
     SSL * ssl_;
     vector<string> acc_san_;
     const char * cA_file_;
     const char * cA_dir_;
     const char * cRL_file_;
-    
+
+public:
     EasySSL(SSL * ssl);
     EasySSL(const EasySSL & easyssl);
     ~EasySSL();

@@ -1,7 +1,6 @@
 [SSLConf]
 Version = Compatible_server # SSLv3, TLSv1, TLSv1.1, TLSv1.2, Compatible
-VerifyMode = CLIENT_AUTH_REQUIRE # CLIENT_AUTH_NONE, CLIENT_AUTH_REQUEST, CLIENT_AUTH_REQUIRE
-VerifyDepth = 9;
+Authentication = AUTH_REQUIRE # AUTH_NONE, AUTH_REQUEST, AUTH_REQUIRE
 CipherSuite = ALL:!LOW:!EXP:!MD5:!aNULL:@STRENGTH
 
 [Verification]
