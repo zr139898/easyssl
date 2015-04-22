@@ -257,14 +257,8 @@ void EasySSL_CTX::LoadConf(const char * conf_filename) {
     SetCipherSuite(GetConfString(conf, "SSLConf", "CipherSuite"));
 
     char * cafile = GetConfString(conf, "Verification", "CAFile");
-    char * cadir = GetConfString(conf, "Verification", "CADir");
-    if (!strcmp(cafile, ""))
-        cafile = NULL;
-    if (!strcmp(cadir, ""))
-        cadir = NULL;
     cA_file_ = cafile;
-    cA_dir_ = cadir;
-    LoadCACertLocations(cafile, cadir);
+    LoadCACert(cafile);
     LoadOwnCert(GetConfString(conf, "Verification", "OwnCert"));
     LoadOwnPrivateKey(GetConfString(conf, "Verification", "OwnPrivateKey"));
     SetCRLFile(GetConfString(conf, "Verification", "CRLFile"));
@@ -292,11 +286,10 @@ void EasySSL_CTX::LoadOwnPrivateKey(const char * private_key_filename) {
 }
 
 // On success, the function returns 1, otherwise fail.
-void EasySSL_CTX::LoadCACertLocations(const char * cA_file, const char * cA_dir) {
-    if (SSL_CTX_load_verify_locations(ctx_, cA_file, cA_dir) != 1)
-        handle_error("Error loading CA file and/or directory");
-    cA_file_ = cA_file;
-    cA_dir_ = cA_dir;
+void EasySSL_CTX::LoadCACert(const char * cA_filename) {
+    if (SSL_CTX_load_verify_locations(ctx_, cA_filename, NULL) != 1)
+        handle_error("Error loading CA file");
+    cA_file_ = cA_filename;
 }
 
 void EasySSL_CTX::SetAuthentication(const char * auth) {
@@ -315,7 +308,7 @@ void EasySSL_CTX::SetCipherSuite(const char * cipher_list) {
         handle_error("Error setting cipher list (no valid ciphers)");
 }
 
-void EasySSL_CTX::SetSAN(vector<string> acc_san) {
+void EasySSL_CTX::Set_acc_san(vector<string> acc_san) {
     acc_san_ = acc_san;
 }
 
@@ -341,8 +334,8 @@ EasySSL * EasySSL_CTX::AcceptSocketConnection() {
     SSL_set_accept_state(ssl);
     SSL_set_bio(ssl, client, client);
     EasySSL * easyssl = new EasySSL(ssl);
-    easyssl->SetSAN(acc_san_);
-    easyssl->SetCA(cA_file_, cA_dir_);
+    easyssl->Set_acc_san(acc_san_);
+    easyssl->SetCA(cA_file_);
     easyssl->SetCRLFile(cRL_file_);
     return easyssl;
 }
@@ -358,8 +351,8 @@ EasySSL * EasySSL_CTX::SocketConnect(const char * address) {
         handle_error("Error creating new SSL");
     SSL_set_bio(ssl, bio, bio);
     EasySSL * easyssl = new EasySSL(ssl);
-    easyssl->SetSAN(acc_san_);
-    easyssl->SetCA(cA_file_, cA_dir_);
+    easyssl->Set_acc_san(acc_san_);
+    easyssl->SetCA(cA_file_);
     easyssl->SetCRLFile(cRL_file_);
     return easyssl;
 }
@@ -385,17 +378,16 @@ EasySSL::~EasySSL() {
         SSL_free(ssl_);
 }
 
-void EasySSL::SetSAN(vector<string> acc_san) {
+void EasySSL::Set_acc_san(vector<string> acc_san) {
     acc_san_ = acc_san;
 }
 
-void EasySSL::SetCRLFile(const char * cRL_file) {
-    cRL_file_ = cRL_file;
+void EasySSL::SetCRLFile(const char * cRL_filename) {
+    cRL_file_ = cRL_filename;
 }
 
-void EasySSL::SetCA(const char * cA_file, const char * cA_dir) {
-    cA_file_ = cA_file;
-    cA_dir = cA_dir;
+void EasySSL::SetCA(const char * cA_filename) {
+    cA_file_ = cA_filename;
 }
 
 void EasySSL::SSLAccept() {
@@ -505,8 +497,8 @@ int EasySSL::CRLCheck() {
 
     // load the CA certificates and CRLs
     // load_locations can be replaced with lookups instead.
-    if (X509_STORE_load_locations(store, cA_file_, cA_dir_) != 1)
-        handle_error("Error loading the CA file or directory");
+    if (X509_STORE_load_locations(store, cA_file_, NULL) != 1)
+        handle_error("Error loading the CA file");
     // create a X509_LOOKUP object, add to the store,  assign the lookup the CRL file
     if (!(lookup = X509_STORE_add_lookup(store, X509_LOOKUP_file())))
         handle_error("Error creating X509_LOOKUP object");

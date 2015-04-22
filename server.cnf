@@ -7,6 +7,5 @@ CipherSuite = ALL:!LOW:!EXP:!MD5:!aNULL:@STRENGTH
 OwnCert = servercert.pem
 OwnPrivateKey = serverkey.pem
 CAFile = rootCAcert.pem
-CADir =
 CRLFile = crl.pem
 AcceptableSubjectAltName = *@zork.org

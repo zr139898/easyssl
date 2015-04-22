@@ -94,7 +94,6 @@ private:
     BIO * bio_;  // for server, holds the listening socket
     vector<string> acc_san_;  // hold the AcceptableSubjectAltName in confile
     const char * cA_file_;
-    const char * cA_dir_;
     const char * cRL_file_;
 
 public:
@@ -111,13 +110,13 @@ public:
     void SetVersion(const char * version);  
     void SetAuthentication(const char * auth);
     void SetCipherSuite(const char * cipher_list);
-    void SetSAN(vector<string> acc_san);
-    void SetCRLFile(const char * cRL_file);
+    void Set_acc_san(vector<string> acc_san);
+    void SetCRLFile(const char * cRL_filename);
     
-    void LoadCACertLocations(const char * cA_file, const char * cA_dir);
+    void LoadCACert(const char * cA_filename);
     // call the two following functions only if the entity has a certificate
-    void LoadOwnCert(const char * cert_file_name);  
-    void LoadOwnPrivateKey(const char * private_key_file_name);
+    void LoadOwnCert(const char * cert_filename);  
+    void LoadOwnPrivateKey(const char * private_key_filename);
     
     // for server, create a listening TCP/IP socket and binding the port to it.
     void CreateListenSocket(const char * host_port);
@@ -138,7 +137,6 @@ private:
     SSL * ssl_;
     vector<string> acc_san_; // hold the AcceptableSubjectAltName in conf file
     const char * cA_file_;
-    const char * cA_dir_;
     const char * cRL_file_;
     int CRLCheck();
     // Check the subjectAltName extensions in the peer certificate against
@@ -149,9 +147,9 @@ public:
     EasySSL(SSL * ssl);
     EasySSL(const EasySSL & easyssl);
     ~EasySSL();
-    void SetSAN(vector<string> acc_san);
-    void SetCA(const char * cA_file, const char * cA_dir);
-    void SetCRLFile(const char * cRL_file);
+    void Set_acc_san(vector<string> acc_san);
+    void SetCA(const char * cA_filename);
+    void SetCRLFile(const char * cRL_filename);
 
     // for server, blocks and waits for a client to initiate a TLS/SSL handshake.
     void SSLAccept();
