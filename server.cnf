@@ -9,4 +9,5 @@ OwnCert = servercert.pem
 OwnPrivateKey = serverkey.pem
 CAFile = rootCAcert.pem
 CADir =
+CRLFile = crl.pem
 AcceptableSubjectAltName = *@zork.org

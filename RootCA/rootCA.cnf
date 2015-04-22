@@ -48,6 +48,6 @@ emailAddress        = root@zork.org
 basicConstraints = CA:true
 subjectKeyIdentifier=hash
 authorityKeyIdentifier=keyid:always,issuer:always
-crlDistributionPoints = URI:http://exampleca.com/rootca.crl
+crlDistributionPoints = URI:http://easyssl.com/crl.pem
 
 [ crl_ext ]

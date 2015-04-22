@@ -10,6 +10,15 @@
 #include <vector>
 #include <string>
 #include <cstring>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <openssl/conf.h>
+
+
+#include <openssl/x509_vfy.h>
+
 #include "ssl_multithread.h"
 using namespace std;
 
@@ -35,8 +44,6 @@ using namespace std;
 class EasySSL_CTX;
 class EasySSL;
 
-void handle_error(const char * file, int lineno, const char * msg);
-
 void init_OpenSSL(void);
 
 void seed_prng(void);
@@ -48,6 +55,9 @@ public:
     SSL_CTX * ctx_;
     BIO * bio_;
     vector<string> acc_san_;
+    const char * cA_file_;
+    const char * cA_dir_;
+    const char * cRL_file_;
     EasySSL_CTX();
     ~EasySSL_CTX();
     static void InitEasySSL();  // called only once
@@ -59,7 +69,8 @@ public:
     void SetVerifyMode(const char * verify_mode);
     void SetVerifyDepth(int depth);
     int SetCipherSuite(const char * cipher_list);
-    void SetHostList(vector<string> acc_san);
+    void SetSAN(vector<string> acc_san);
+    void SetCRLFile(const char * cRL_file);
     
     int LoadOwnCert(const char * cert_file_name);
     int LoadOwnPrivateKey(const char * private_key_file_name);
@@ -74,13 +85,20 @@ class EasySSL {
 public:
     SSL * ssl_;
     vector<string> acc_san_;
+    const char * cA_file_;
+    const char * cA_dir_;
+    const char * cRL_file_;
     
     EasySSL(SSL * ssl);
     EasySSL(const EasySSL & easyssl);
     ~EasySSL();
-    void SetHostList(vector<string> acc_san);
+    void SetSAN(vector<string> acc_san);
+    void SetCA(const char * cA_file, const char * cA_dir);
+    void SetCRLFile(const char * cRL_file);
+    
     int AcceptSSLConnection();
     int SSLConnect();
+    int CRLCheck();
     long PostConnectionCheck();
     int Shutdown();
     int GetShutdown();

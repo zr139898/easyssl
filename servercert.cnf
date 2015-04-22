@@ -19,6 +19,7 @@ emailAddress           = splat@zork.org
 basicConstraints = CA:false
 subjectAltName = DNS:splat.zork.org,email:copy
 
-[ certificate_extensions ]
+[ usr_ext ]
 basicConstraints = CA:false
 subjectAltName = DNS:splat.zork.org,email:copy
+crlDistributionPoints = URI:http://easyssl.com/crl.pem

@@ -14,7 +14,6 @@ default_days     = 365
 default_md       = sha1
  
 policy           = serverca_policy
-x509_extensions  = certificate_extensions
  
 [ serverca_policy ]
 countryName            = supplied
@@ -44,8 +43,3 @@ commonName             = Server CA
 
 [ req_extensions ]
 basicConstraints = CA:true
-
-[ certificate_extensions ]
-basicConstraints = CA:true
-subjectKeyIdentifier=hash
-authorityKeyIdentifier=keyid:always,issuer:always

@@ -9,4 +9,5 @@ OwnCert = clientcert.pem
 OwnPrivateKey = clientkey.pem
 CAFile = rootCAcert.pem
 CADir =
+CRLFile = crl.pem
 AcceptableSubjectAltName = splat.zork.org

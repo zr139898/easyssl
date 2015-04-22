@@ -19,6 +19,7 @@ emailAddress           = shell@zork.org
 basicConstraints = CA:false
 subjectAltName = email:copy
 
-[ usr_cert_ext ]
+[ usr_ext ]
 basicConstraints = CA:false
 subjectAltName = email:copy
+crlDistributionPoints = URI:http://easyssl.com/crl.pem
