@@ -108,7 +108,6 @@ int wildcmp(const char *wild, const char *string) {
 
 int FQDNMatch(std::vector<string> acc_san, const char * fqdn) {
     for (std::vector<string>::iterator it = acc_san.begin(); it != acc_san.end(); ++it) {
-        cout << "*it = " << *it << endl << "fqdn = " << fqdn << endl;
         if (wildcmp((*it).c_str(), fqdn))
             return 1;
     }
@@ -223,6 +222,7 @@ void EasySSL_CTX::SetVersion(const char * version) {
     } else {
         handle_error("** illegal SSL/TLS version!");
     }
+    SSL_CTX_set_mode(ctx_, SSL_MODE_AUTO_RETRY);
 }
 
 void EasySSL_CTX::InitEasySSL(void) {
@@ -266,7 +266,6 @@ void EasySSL_CTX::LoadConf(const char * conf_filename) {
     char * acc_san_str = GetConfString(conf, "Verification", "AcceptableSubjectAltName");
     char * pch = strtok (acc_san_str, "|");
     while (pch) {
-        printf("%s\n", pch);
         acc_san_.push_back(string(pch));
         pch = strtok(NULL, "|");
     }
@@ -434,7 +433,7 @@ char * GetCertCRLURI(X509 * cert) {
     return 0;
 }
 
-int RetrieveCRLviaHTTP(const char * uri) {
+int RetrieveCRLviaHTTP(const char * uri, const char * cRL_filename) {
     BIO * cbio, * out;
     int len;
     char tmpbuf[1024];
@@ -464,10 +463,10 @@ int RetrieveCRLviaHTTP(const char * uri) {
     BIO_set_conn_hostname(cbio, host);
     BIO_set_conn_port(cbio, portstr);
     
-    out = BIO_new_file("crl.pem", "w");
+    out = BIO_new_file(cRL_filename, "w");
 
     if (BIO_do_connect(cbio) <= 0) {
-        fprintf(stderr, "Error connecting to server\n");
+        fprintf(stderr, "Error connecting to %s:%s\n", host, portstr);
         ERR_print_errors_fp(stderr);
     }
     BIO_printf(cbio, "GET /%s HTTP/1.1\r\nConnection: close\r\n\r\n", path);
@@ -515,7 +514,7 @@ int EasySSL::CRLCheck() {
         char * uri = GetCertCRLURI(cert);
         if (!uri)
             handle_error("Error reading crlDistributionPoint from certificate");
-        if (RetrieveCRLviaHTTP(uri)) {
+        if (RetrieveCRLviaHTTP(uri, cRL_file_)) {
             fprintf(stderr, "CRL file downloaded. Now perform CRL checking again");
             if (X509_load_crl_file(lookup, cRL_file_, X509_FILETYPE_PEM) != 1)
                 handle_error("Error reading the downloaded CRL file");
@@ -573,9 +572,36 @@ void EasySSL::Shutdown() {
 }
 
 int EasySSL::Read(void * buf, int num) {
-    return SSL_read(ssl_, buf, num);
+    int ret = SSL_read(ssl_, buf, num);
+    
+    switch (SSL_get_error(ssl_, ret)) {
+        case SSL_ERROR_NONE:
+            return ret;
+            break;
+        case SSL_ERROR_ZERO_RETURN:
+            fprintf(stderr, "The TLS/SSL connection has been closed.\n");
+            return ret;
+            break;
+        default:
+            fprintf(stderr, "-Error: Unknown error occurred when performing the Read operation\n");
+            return ret;
+            break;
+    }
 }
 
 int EasySSL::Write(const void * buf, int num) {
-    return SSL_write(ssl_, buf, num);
+    int ret = SSL_write(ssl_, buf, num);
+    switch (SSL_get_error(ssl_, ret)) {
+        case SSL_ERROR_NONE:
+            return ret;
+            break;
+        case SSL_ERROR_ZERO_RETURN:
+            fprintf(stderr, "The TLS/SSL connection has been closed.\n");
+            return ret;
+            break;
+        default:
+            fprintf(stderr, "-Error: Unknown error occurred when performing the Write operation\n");
+            return ret;
+            break;
+    }
 }

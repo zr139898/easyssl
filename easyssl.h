@@ -156,8 +156,24 @@ public:
     // for client, initiates a TLS/SSL handshake with a server.
     void SSLConnect();
     void Shutdown();
-    
+
+    // blocking read operation.
+    // tried to read num bytes from the TLS/SSL connection into the buffer buf.
+    // return value:
+    // ** > 0: The read operation was successful; the return value is the number
+    //         of bytes actually read from the TLS/SSL connection.
+    // ** = 0: The read operation was not successful. The reason is a shutdown
+    //         due to a "close notify" alert sent by the peer.
+    // ** < 0: The read operation was not successful. Unknown reason.
     int Read(void * buf, int num);
+    // blocking write operation.
+    // tries to write num bytes from buf into the TLS/SSL connection.
+    // return value:
+    // ** > 0: The write operation was successful; the return value is the
+    //         number of bytes actuaaly written to the TLS/SSL connection.
+    // ** = 0: The write operation was not successful. The reason is the
+    //         underlying connection was closed.
+    // ** < 0: The write operation was not successful. Unknown reason.
     int Write(const void * buf, int num);
 };
 
