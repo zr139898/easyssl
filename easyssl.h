@@ -107,16 +107,17 @@ public:
     // provide two options: conf file or using the function for settings.
     void LoadConf(const char * conf_filename);
 
-    void SetVersion(const char * version);  
+    void SetVersion(const char * version);
     void SetAuthentication(const char * auth);
     void SetCipherSuite(const char * cipher_list);
-    void Set_acc_san(vector<string> acc_san);
-    void SetCRLFile(const char * cRL_filename);
     
     void LoadCACert(const char * cA_filename);
+    void SetCRLFile(const char * cRL_filename);
     // call the two following functions only if the entity has a certificate
-    void LoadOwnCert(const char * cert_filename);  
+    void LoadOwnCert(const char * cert_filename);
     void LoadOwnPrivateKey(const char * private_key_filename);
+    
+    void Set_acc_san(vector<string> acc_san);
     
     // for server, create a listening TCP/IP socket and binding the port to it.
     void CreateListenSocket(const char * host_port);
@@ -134,10 +135,19 @@ public:
 
 class EasySSL {
 private:
+    // Making EasySSL_CTX a friend to EasySSL enables EasySSL_CTX to pass data
+    // "acc_san_", "cA_file_" and "cRL_file_" to EasySSL when an EasySSL_CTX
+    // object creates a new EasySSL object. I dont't want to make three public
+    // set methods to set these data in case that the client can use them.
+    friend class EasySSL_CTX;
+    
     SSL * ssl_;
     vector<string> acc_san_; // hold the AcceptableSubjectAltName in conf file
     const char * cA_file_;
     const char * cRL_file_;
+    
+    // Check the status of peer certificates against the certificate revocation
+    // list of the CA
     int CRLCheck();
     // Check the subjectAltName extensions in the peer certificate against
     // AcceptableSubjectAltName in the conf file
@@ -147,11 +157,8 @@ public:
     EasySSL(SSL * ssl);
     EasySSL(const EasySSL & easyssl);
     ~EasySSL();
-    void Set_acc_san(vector<string> acc_san);
-    void SetCA(const char * cA_filename);
-    void SetCRLFile(const char * cRL_filename);
 
-    // for server, blocks and waits for a client to initiate a TLS/SSL handshake.
+    // for server, blocks and waits for a client to initiate a TLS/SSL handshake
     void SSLAccept();
     // for client, initiates a TLS/SSL handshake with a server.
     void SSLConnect();

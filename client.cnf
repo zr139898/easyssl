@@ -4,8 +4,8 @@ Authentication = AUTH_REQUIRE # AUTH_NONE, AUTH_REQUEST, AUTH_REQUIRE
 CipherSuite = ALL:!LOW:!EXP:!MD5:!aNULL:@STRENGTH
 
 [Verification]
-OwnCert = clientcert.pem
-OwnPrivateKey = clientkey.pem
 CAFile = rootCAcert.pem
 CRLFile = crl.pem
+OwnCert = clientcert.pem
+OwnPrivateKey = clientkey.pem
 AcceptableSubjectAltName = splat.zork.org

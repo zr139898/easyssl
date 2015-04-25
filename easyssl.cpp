@@ -174,6 +174,21 @@ char * GetConfString(const CONF * conf, const char * section, const char * key) 
 //////////////////////////////////////////////////////////////////////
 // EasySSL_CTX begin
 //////////////////////////////////////////////////////////////////////
+void EasySSL_CTX::InitEasySSL(void) {
+    SSL_library_init();
+    OpenSSL_add_all_algorithms();
+    SSL_load_error_strings();
+    RAND_load_file("/dev/urandom", 1024);  // seed prng
+    if (!THREAD_setup())
+        handle_error("OpenSSL thread setup failed!\n");
+}
+
+void EasySSL_CTX::FreeEasySSL(void) {
+    EVP_cleanup();
+    ERR_free_strings();
+    THREAD_cleanup();
+}
+
 EasySSL_CTX::EasySSL_CTX() {
     ctx_ = NULL;
     bio_ = NULL;
@@ -184,6 +199,40 @@ EasySSL_CTX::~EasySSL_CTX(void) {
         SSL_CTX_free(ctx_);
     if (bio_)
         BIO_free(bio_);
+}
+
+void EasySSL_CTX::LoadConf(const char * conf_filename) {
+    long err = 0;
+    CONF * conf = NCONF_new(NCONF_default());
+    if (!NCONF_load(conf, conf_filename, &err)) {
+        if (err == 0) {
+            handle_error("Error opening configuration file");
+        } else {
+            fprintf(stderr, "Error in %s on line %li\n", conf_filename, err);
+            handle_error("Errors parsing configuration file");
+        }
+    }
+
+    SetVersion(GetConfString(conf, "SSLConf", "Version"));
+    SetAuthentication(GetConfString(conf, "SSLConf", "Authentication"));
+    SetCipherSuite(GetConfString(conf, "SSLConf", "CipherSuite"));
+
+    LoadCACert(GetConfString(conf, "Verification", "CAFile"));
+    SetCRLFile(GetConfString(conf, "Verification", "CRLFile"));
+    // optional own cert and own prk
+    char * file = GetConfString(conf, "Verification", "OwnCert");
+    if (strcmp(file, ""))
+        LoadOwnCert(file);
+    file = GetConfString(conf, "Verification", "OwnPrivateKey");
+    if (strcmp(file, ""))
+        LoadOwnPrivateKey(file);
+
+    char * acc_san_str = GetConfString(conf, "Verification", "AcceptableSubjectAltName");
+    char * pch = strtok (acc_san_str, "|");
+    while (pch) {
+        acc_san_.push_back(string(pch));
+        pch = strtok(NULL, "|");
+    }
 }
 
 void EasySSL_CTX::SetVersion(const char * version) {
@@ -225,72 +274,6 @@ void EasySSL_CTX::SetVersion(const char * version) {
     SSL_CTX_set_mode(ctx_, SSL_MODE_AUTO_RETRY);
 }
 
-void EasySSL_CTX::InitEasySSL(void) {
-    SSL_library_init();
-    OpenSSL_add_all_algorithms();
-    SSL_load_error_strings();
-    RAND_load_file("/dev/urandom", 1024);  // seed prng
-    if (!THREAD_setup())
-        handle_error("OpenSSL thread setup failed!\n");
-}
-
-void EasySSL_CTX::FreeEasySSL(void) {
-    EVP_cleanup();
-    ERR_free_strings();
-    THREAD_cleanup();
-}
-
-void EasySSL_CTX::LoadConf(const char * conf_filename) {
-    long err = 0;
-    CONF * conf = NCONF_new(NCONF_default());
-    if (!NCONF_load(conf, conf_filename, &err)) {
-        if (err == 0) {
-            handle_error("Error opening configuration file");
-        } else {
-            fprintf(stderr, "Error in %s on line %li\n", conf_filename, err);
-            handle_error("Errors parsing configuration file");
-        }
-    }
-
-    SetVersion(GetConfString(conf, "SSLConf", "Version"));
-    SetAuthentication(GetConfString(conf, "SSLConf", "Authentication"));
-    SetCipherSuite(GetConfString(conf, "SSLConf", "CipherSuite"));
-
-    char * cafile = GetConfString(conf, "Verification", "CAFile");
-    cA_file_ = cafile;
-    LoadCACert(cafile);
-    LoadOwnCert(GetConfString(conf, "Verification", "OwnCert"));
-    LoadOwnPrivateKey(GetConfString(conf, "Verification", "OwnPrivateKey"));
-    SetCRLFile(GetConfString(conf, "Verification", "CRLFile"));
-
-    char * acc_san_str = GetConfString(conf, "Verification", "AcceptableSubjectAltName");
-    char * pch = strtok (acc_san_str, "|");
-    while (pch) {
-        acc_san_.push_back(string(pch));
-        pch = strtok(NULL, "|");
-    }
-}
-
-// On success, the function returns 1, otherwise fail.
-void EasySSL_CTX::LoadOwnCert(const char * cert_filename) {
-    if (SSL_CTX_use_certificate_chain_file(ctx_, cert_filename) != 1)
-        handle_error("Error loading certificate from file");
-}
-
-// On success, the function returns 1, otherwise fail.
-void EasySSL_CTX::LoadOwnPrivateKey(const char * private_key_filename) {
-    if (SSL_CTX_use_PrivateKey_file(ctx_, private_key_filename,
-                                    SSL_FILETYPE_PEM) != 1)
-        handle_error("Error setting cipher list (no valid ciphers)");
-}
-
-// On success, the function returns 1, otherwise fail.
-void EasySSL_CTX::LoadCACert(const char * cA_filename) {
-    if (SSL_CTX_load_verify_locations(ctx_, cA_filename, NULL) != 1)
-        handle_error("Error loading CA file");
-    cA_file_ = cA_filename;
-}
-
 void EasySSL_CTX::SetAuthentication(const char * auth) {
     int mode;
     if (!strcmp(auth, "AUTH_NONE"))
@@ -307,12 +290,41 @@ void EasySSL_CTX::SetCipherSuite(const char * cipher_list) {
         handle_error("Error setting cipher list (no valid ciphers)");
 }
 
-void EasySSL_CTX::Set_acc_san(vector<string> acc_san) {
-    acc_san_ = acc_san;
+// On success, the function returns 1, otherwise fail.
+void EasySSL_CTX::LoadCACert(const char * cA_filename) {
+    if (cA_filename == NULL || !strcmp(cA_filename, ""))  // empty filename
+        handle_error("Error loading CA file, because the CA certificate filename is empty");
+    if (SSL_CTX_load_verify_locations(ctx_, cA_filename, NULL) != 1)
+        handle_error("Error loading CA file");
+    cA_file_ = cA_filename;
 }
 
 void EasySSL_CTX::SetCRLFile(const char * cRL_file) {
+    cRL_file_ = "crl.pem";
+    if (cRL_file == NULL || !strcmp(cRL_file, ""))
+        fprintf(stderr, "The CRL filename is empty. Using the default CRL filename \"crl.pem\"");
     cRL_file_ = cRL_file;
+}
+
+// On success, the function returns 1, otherwise fail.
+void EasySSL_CTX::LoadOwnCert(const char * cert_filename) {
+    if (cert_filename == NULL || !strcmp(cert_filename, ""))
+        handle_error("Error loading own certificate, because the certicate filename is empty");
+    if (SSL_CTX_use_certificate_chain_file(ctx_, cert_filename) != 1)
+        handle_error("Error loading own certificate from file");
+}
+
+// On success, the function returns 1, otherwise fail.
+void EasySSL_CTX::LoadOwnPrivateKey(const char * private_key_filename) {
+    if (private_key_filename == NULL || !strcmp(private_key_filename, ""))
+        handle_error("Error loading private key, because the private key filename is empty");
+    if (SSL_CTX_use_PrivateKey_file(ctx_, private_key_filename,
+                                    SSL_FILETYPE_PEM) != 1)
+        handle_error("Error loading private key from file");
+}
+
+void EasySSL_CTX::Set_acc_san(vector<string> acc_san) {
+    acc_san_ = acc_san;
 }
 
 void EasySSL_CTX::CreateListenSocket(const char * host_port) {
@@ -333,9 +345,9 @@ EasySSL * EasySSL_CTX::AcceptSocketConnection() {
     SSL_set_accept_state(ssl);
     SSL_set_bio(ssl, client, client);
     EasySSL * easyssl = new EasySSL(ssl);
-    easyssl->Set_acc_san(acc_san_);
-    easyssl->SetCA(cA_file_);
-    easyssl->SetCRLFile(cRL_file_);
+    easyssl->acc_san_ = acc_san_;
+    easyssl->cA_file_ = cA_file_;
+    easyssl->cRL_file_ = cRL_file_;
     return easyssl;
 }
 
@@ -350,9 +362,9 @@ EasySSL * EasySSL_CTX::SocketConnect(const char * address) {
         handle_error("Error creating new SSL");
     SSL_set_bio(ssl, bio, bio);
     EasySSL * easyssl = new EasySSL(ssl);
-    easyssl->Set_acc_san(acc_san_);
-    easyssl->SetCA(cA_file_);
-    easyssl->SetCRLFile(cRL_file_);
+    easyssl->acc_san_ = acc_san_;
+    easyssl->cA_file_ = cA_file_;
+    easyssl->cRL_file_ = cRL_file_;
     return easyssl;
 }
 
@@ -375,18 +387,6 @@ EasySSL::EasySSL(const EasySSL & easyssl) {
 EasySSL::~EasySSL() {
     if (ssl_)
         SSL_free(ssl_);
-}
-
-void EasySSL::Set_acc_san(vector<string> acc_san) {
-    acc_san_ = acc_san;
-}
-
-void EasySSL::SetCRLFile(const char * cRL_filename) {
-    cRL_file_ = cRL_filename;
-}
-
-void EasySSL::SetCA(const char * cA_filename) {
-    cA_file_ = cA_filename;
 }
 
 void EasySSL::SSLAccept() {
