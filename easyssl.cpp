@@ -335,7 +335,7 @@ void EasySSL_CTX::CreateListenSocket(const char * host_port) {
         handle_error("Error binding server socket");
 }
 
-EasySSL * EasySSL_CTX::AcceptSocketConnection() {
+EasySSL EasySSL_CTX::AcceptSocketConnection() {
     if (BIO_do_accept(bio_) <= 0)
         handle_error("Error accepting connection");
     BIO * client = BIO_pop(bio_);
@@ -344,11 +344,11 @@ EasySSL * EasySSL_CTX::AcceptSocketConnection() {
         handle_error("Error creating new SSL");
     SSL_set_accept_state(ssl);
     SSL_set_bio(ssl, client, client);
-    EasySSL * easyssl = new EasySSL(ssl, cA_file_, cRL_file_, acc_san_);
+    EasySSL easyssl(ssl, cA_file_, cRL_file_, acc_san_);
     return easyssl;
 }
 
-EasySSL * EasySSL_CTX::SocketConnect(const char * address) {
+EasySSL EasySSL_CTX::SocketConnect(const char * address) {
     BIO * bio = BIO_new_connect(const_cast<char *>(address));
     if (!bio)
         handle_error("Error creating connection BIO");
@@ -358,7 +358,7 @@ EasySSL * EasySSL_CTX::SocketConnect(const char * address) {
     if (!ssl)
         handle_error("Error creating new SSL");
     SSL_set_bio(ssl, bio, bio);
-    EasySSL * easyssl = new EasySSL(ssl, cA_file_, cRL_file_, acc_san_);
+    EasySSL easyssl(ssl, cA_file_, cRL_file_, acc_san_);
     return easyssl;
 }
 
@@ -378,10 +378,7 @@ EasySSL::EasySSL(SSL * ssl, const char * cA_file, const char * cRL_file,
     acc_san_ = acc_san;
 }
 
-EasySSL::~EasySSL() {
-    if (ssl_)
-        SSL_free(ssl_);
-}
+EasySSL::~EasySSL() {}
 
 void EasySSL::SSLAccept() {
     if (SSL_accept(ssl_) <= 0)
@@ -563,6 +560,7 @@ long EasySSL::SANCheck() {
 
 void EasySSL::Shutdown() {
     SSL_shutdown(ssl_);
+    SSL_free(ssl_);
 }
 
 int EasySSL::Read(void * buf, int num) {

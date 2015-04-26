@@ -103,12 +103,12 @@ public:
     // returns an EasySSL object which uses this socket connection as
     // the underlying communication channel and inherits the setting of
     // this EasySSL_CTX
-    EasySSL * AcceptSocketConnection();
+    EasySSL AcceptSocketConnection();
     // for client, attempt to establish a TCP/IP socket connection to remote
     // server, and returns an EasySSL object which uses this socket connection
     // as the underlying communication channel and inherits the setting of
     // this EasySSL_CTX
-    EasySSL * SocketConnect(const char * address);
+    EasySSL SocketConnect(const char * address);
 };
 
 class EasySSL {
