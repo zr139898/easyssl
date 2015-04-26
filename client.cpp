@@ -40,7 +40,7 @@ int main(void) {
         }
     }
     easyssl->Shutdown();
-    delete easyssl;
+    
     
     cout << "Connection Closed" << endl;
 

@@ -54,12 +54,29 @@ int main(void) {
     ctx.CreateListenSocket(const_cast<char *>(PORT));
     
     THREAD_TYPE tid;
-    EasySSL * easyssl;
+    EasySSL * ssl;
     
-    while (1) {
-        easyssl = ctx.AcceptSocketConnection();
-        THREAD_CREATE(tid, server_thread, easyssl);
-    }
+    // while (1) {
+        ssl = ctx.AcceptSocketConnection();
+        // THREAD_CREATE(tid, server_thread, &easyssl);
+    ssl->SSLAccept();
+    fprintf(stderr, "Connection opened.\n");
+    
+    int len, len_read;
+    char buf[80];
+    
+    do {
+        for (len_read = 0; len_read < sizeof(buf); len_read += len) {
+            len = ssl->Read(buf + len_read, sizeof(buf) - len_read);
+            if (len <= 0)
+                break;
+            printf("%s", buf);
+        }
+    } while (len > 0);
+    
+    ssl->Shutdown();
+    
+    fprintf(stderr, "Connection closed.\n");
     EasySSL_CTX::FreeEasySSL();
     return 0;
 }
