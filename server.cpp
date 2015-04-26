@@ -13,9 +13,9 @@ using namespace std;
 
 void THREAD_CC server_thread(void * arg) {
     EasySSL * ssl = (EasySSL *)arg;
-#ifndef WIN32
+
     pthread_detach(pthread_self());
-#endif
+
     ssl->SSLAccept();
     fprintf(stderr, "Connection opened.\n");
     
@@ -36,9 +36,6 @@ void THREAD_CC server_thread(void * arg) {
     fprintf(stderr, "Connection closed.\n");
     delete ssl;
     ERR_remove_state(0);
-#ifdef WIN32
-    _endthread();
-#endif
 }
 
 int main(void) {
