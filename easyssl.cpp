@@ -344,10 +344,7 @@ EasySSL * EasySSL_CTX::AcceptSocketConnection() {
         handle_error("Error creating new SSL");
     SSL_set_accept_state(ssl);
     SSL_set_bio(ssl, client, client);
-    EasySSL * easyssl = new EasySSL(ssl);
-    easyssl->acc_san_ = acc_san_;
-    easyssl->cA_file_ = cA_file_;
-    easyssl->cRL_file_ = cRL_file_;
+    EasySSL * easyssl = new EasySSL(ssl, cA_file_, cRL_file_, acc_san_);
     return easyssl;
 }
 
@@ -361,10 +358,7 @@ EasySSL * EasySSL_CTX::SocketConnect(const char * address) {
     if (!ssl)
         handle_error("Error creating new SSL");
     SSL_set_bio(ssl, bio, bio);
-    EasySSL * easyssl = new EasySSL(ssl);
-    easyssl->acc_san_ = acc_san_;
-    easyssl->cA_file_ = cA_file_;
-    easyssl->cRL_file_ = cRL_file_;
+    EasySSL * easyssl = new EasySSL(ssl, cA_file_, cRL_file_, acc_san_);
     return easyssl;
 }
 
@@ -376,12 +370,12 @@ EasySSL * EasySSL_CTX::SocketConnect(const char * address) {
 // EasySSL begin
 //////////////////////////////////////////////////////////////////////
 
-EasySSL::EasySSL(SSL * ssl) {
+EasySSL::EasySSL(SSL * ssl, const char * cA_file, const char * cRL_file,
+                 vector<string> acc_san) {
     ssl_ = ssl;
-}
-
-EasySSL::EasySSL(const EasySSL & easyssl) {
-    ssl_ = easyssl.ssl_;
+    cA_file_ = cA_file;
+    cRL_file_ = cRL_file;
+    acc_san_ = acc_san;
 }
 
 EasySSL::~EasySSL() {

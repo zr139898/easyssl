@@ -70,9 +70,9 @@ class EasySSL_CTX {
 private:
     SSL_CTX * ctx_;
     BIO * bio_;  // for server, holds the listening socket
-    vector<string> acc_san_;  // hold the AcceptableSubjectAltName in confile
     const char * cA_file_;
     const char * cRL_file_;
+    vector<string> acc_san_;  // hold the AcceptableSubjectAltName in confile
 
 public:
     // Application will call InitEasySSL initially and FreeEasySSL before exiting
@@ -113,16 +113,10 @@ public:
 
 class EasySSL {
 private:
-    // Making EasySSL_CTX a friend to EasySSL enables EasySSL_CTX to pass data
-    // "acc_san_", "cA_file_" and "cRL_file_" to EasySSL when an EasySSL_CTX
-    // object creates a new EasySSL object. I dont't want to make three public
-    // set methods to set these data in case that the client can use them.
-    friend class EasySSL_CTX;
-    
     SSL * ssl_;
-    vector<string> acc_san_; // hold the AcceptableSubjectAltName in conf file
     const char * cA_file_;
     const char * cRL_file_;
+    vector<string> acc_san_; // hold the AcceptableSubjectAltName in conf file
     
     // Check the status of peer certificates against the certificate revocation
     // list of the CA
@@ -132,8 +126,9 @@ private:
     long SANCheck();
 
 public:
-    EasySSL(SSL * ssl);
-    EasySSL(const EasySSL & easyssl);
+    EasySSL(SSL * ssl, const char * cA_file, const char * cRL_file,
+        vector<string> acc_san);
+    
     ~EasySSL();
 
     // for server, blocks and waits for a client to initiate a TLS/SSL handshake
