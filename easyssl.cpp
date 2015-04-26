@@ -53,23 +53,23 @@ int THREAD_cleanup(void) {
 // Multithread Support end
 //////////////////////////////////////////////////////////////////////
 
-int verify_callback(int preverify_ok, X509_STORE_CTX * ctx) {
-    char data[256];
+// int verify_callback(int preverify_ok, X509_STORE_CTX * ctx) {
+//     char data[256];
 
-    if (!preverify_ok) {
-        X509 * cert = X509_STORE_CTX_get_current_cert(ctx);
-        int depth = X509_STORE_CTX_get_error_depth(ctx);
-        int err = X509_STORE_CTX_get_error(ctx);
+//     if (!preverify_ok) {
+//         X509 * cert = X509_STORE_CTX_get_current_cert(ctx);
+//         int depth = X509_STORE_CTX_get_error_depth(ctx);
+//         int err = X509_STORE_CTX_get_error(ctx);
 
-        fprintf(stderr, "-Error with certificate at depth: %i\n", depth);
-        X509_NAME_oneline(X509_get_issuer_name(cert), data, 256);
-        fprintf(stderr, "  issuer   = %s\n", data);
-        X509_NAME_oneline(X509_get_subject_name(cert), data, 256);
-        fprintf(stderr, "  subject  = %s\n", data);
-        fprintf(stderr, "  err %i:%s\n", err, X509_verify_cert_error_string(err));
-    }
-    return preverify_ok;
-}
+//         fprintf(stderr, "-Error with certificate at depth: %i\n", depth);
+//         X509_NAME_oneline(X509_get_issuer_name(cert), data, 256);
+//         fprintf(stderr, "  issuer   = %s\n", data);
+//         X509_NAME_oneline(X509_get_subject_name(cert), data, 256);
+//         fprintf(stderr, "  subject  = %s\n", data);
+//         fprintf(stderr, "  err %i:%s\n", err, X509_verify_cert_error_string(err));
+//     }
+//     return preverify_ok;
+// }
 
 int wildcmp(const char *wild, const char *string) {
     // Written by Jack Handy - <A href="mailto:jakkhandy@hotmail.com">jakkhandy@hotmail.com</A>
@@ -282,7 +282,7 @@ void EasySSL_CTX::SetAuthentication(const char * auth) {
         mode = SSL_VERIFY_PEER;
     if (!strcmp(auth, "AUTH_REQUIRE"))
         mode = SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
-    SSL_CTX_set_verify(ctx_, mode, verify_callback);
+    SSL_CTX_set_verify(ctx_, mode, NULL);
 }
 
 void EasySSL_CTX::SetCipherSuite(const char * cipher_list) {
@@ -492,7 +492,7 @@ int EasySSL::CRLCheck() {
     // create the cert store and set the verify callback
     if (!(store = X509_STORE_new()))
         handle_error("Error creating X509_STORE_CTX object");
-    X509_STORE_set_verify_cb_func(store, verify_callback);
+    //X509_STORE_set_verify_cb_func(store, verify_callback);
 
     // load the CA certificates and CRLs
     // load_locations can be replaced with lookups instead.
@@ -515,7 +515,7 @@ int EasySSL::CRLCheck() {
         if (!uri)
             handle_error("Error reading crlDistributionPoint from certificate");
         if (RetrieveCRLviaHTTP(uri, cRL_file_)) {
-            fprintf(stderr, "CRL file downloaded. Now perform CRL checking again");
+            fprintf(stderr, "CRL file downloaded. Now perform CRL checking again\n");
             if (X509_load_crl_file(lookup, cRL_file_, X509_FILETYPE_PEM) != 1)
                 handle_error("Error reading the downloaded CRL file");
         } else {
