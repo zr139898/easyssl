@@ -19,7 +19,7 @@ static unsigned long id_function(void) {
 }
 
 // allocate the memory required to hold the mutexes.
-int THREAD_setup(void) {
+int ThreadSetup(void) {
     int i;
 
     //CRYPTO_num_locks() returns the required number of locks
@@ -34,7 +34,7 @@ int THREAD_setup(void) {
     return 1;
 }
 
-int THREAD_cleanup(void) {
+int ThreadCleanup(void) {
     int i;
 
     if (!mutex_buf) return 0;
@@ -51,6 +51,10 @@ int THREAD_cleanup(void) {
 
 //////////////////////////////////////////////////////////////////////
 // Multithread Support end
+//////////////////////////////////////////////////////////////////////
+
+//////////////////////////////////////////////////////////////////////
+// Utility Function begin
 //////////////////////////////////////////////////////////////////////
 
 // int verify_callback(int preverify_ok, X509_STORE_CTX * ctx) {
@@ -105,305 +109,12 @@ int wildcmp(const char *wild, const char *string) {
     return !*wild;
 }
 
-
 int FQDNMatch(std::vector<string> acc_san, const char * fqdn) {
     for (std::vector<string>::iterator it = acc_san.begin(); it != acc_san.end(); ++it) {
         if (wildcmp((*it).c_str(), fqdn))
             return 1;
     }
     return 0;
-}
-
-
-DH * dh512 = NULL;
-DH * dh1024 = NULL;
-
-// reads the DH params from the files and loads them into the global params.
-void init_dhparams(void) {
-    BIO * bio;
-
-    bio = BIO_new_file("dh512.pem", "r");
-    if (!bio)
-        handle_error("Error opening file dh512.pem");
-    dh512 = PEM_read_bio_DHparams(bio, NULL, NULL, NULL);
-    if (!dh512)
-        handle_error("Error reading DH parameters from dh512.pem");
-    BIO_free(bio);
-
-    bio = BIO_new_file("dh1024.pem", "r");
-    if (!bio)
-        handle_error("Error opening file dh1024.pem");
-    dh1024 = PEM_read_bio_DHparams(bio, NULL, NULL, NULL);
-    if (!dh1024)
-        handle_error("Error reading DH parameters from dh1024.pem");
-    BIO_free(bio);
-}
-
-// simply switches on the required key size and returns either a 512-bit DH
-// params or a 1024-bit DH params.
-// This function intertionally does not try to perform any on-the-fly
-// generation of params.
-DH * tmp_dh_callback(SSL * ssl, int is_export, int keylength) {
-    DH * ret;
-
-    if (!dh512 || !dh1024)
-        init_dhparams();
-
-    switch (keylength) {
-    case 512:
-        ret = dh512;
-        break;
-    case 1024:
-    default:
-        //generating DH params is too costly to do on the fly
-        ret = dh1024;
-        break;
-    }
-    return ret;
-}
-
-char * GetConfString(const CONF * conf, const char * section, const char * key) {
-    char * ret;
-    if (!(ret = NCONF_get_string(conf, section, key))) {
-        fprintf(stderr, "Error finding \"%s\" in [%s]\n", key, section);
-        handle_error("Errors finding string");
-    }
-    return ret;
-}
-
-//////////////////////////////////////////////////////////////////////
-// EasySSL_CTX begin
-//////////////////////////////////////////////////////////////////////
-void EasySSL_CTX::InitEasySSL(void) {
-    SSL_library_init();
-    OpenSSL_add_all_algorithms();
-    SSL_load_error_strings();
-    RAND_load_file("/dev/urandom", 1024);  // seed prng
-    if (!THREAD_setup())
-        handle_error("OpenSSL thread setup failed!\n");
-}
-
-void EasySSL_CTX::FreeEasySSL(void) {
-    EVP_cleanup();
-    ERR_free_strings();
-    THREAD_cleanup();
-}
-
-EasySSL_CTX::EasySSL_CTX() {
-    ctx_ = NULL;
-    bio_ = NULL;
-}
-
-EasySSL_CTX::~EasySSL_CTX(void) {
-    if (ctx_)
-        SSL_CTX_free(ctx_);
-    if (bio_)
-        BIO_free(bio_);
-}
-
-void EasySSL_CTX::LoadConf(const char * conf_filename) {
-    long err = 0;
-    CONF * conf = NCONF_new(NCONF_default());
-    if (!NCONF_load(conf, conf_filename, &err)) {
-        if (err == 0) {
-            handle_error("Error opening configuration file");
-        } else {
-            fprintf(stderr, "Error in %s on line %li\n", conf_filename, err);
-            handle_error("Errors parsing configuration file");
-        }
-    }
-
-    SetVersion(GetConfString(conf, "SSLConf", "Version"));
-    SetAuthentication(GetConfString(conf, "SSLConf", "Authentication"));
-    SetCipherSuite(GetConfString(conf, "SSLConf", "CipherSuite"));
-
-    LoadCACert(GetConfString(conf, "Verification", "CAFile"));
-    SetCRLFile(GetConfString(conf, "Verification", "CRLFile"));
-    // optional own cert and own prk
-    char * file = GetConfString(conf, "Verification", "OwnCert");
-    if (strcmp(file, ""))
-        LoadOwnCert(file);
-    file = GetConfString(conf, "Verification", "OwnPrivateKey");
-    if (strcmp(file, ""))
-        LoadOwnPrivateKey(file);
-
-    char * acc_san_str = GetConfString(conf, "Verification", "AcceptableSubjectAltName");
-    char * pch = strtok (acc_san_str, "|");
-    while (pch) {
-        acc_san_.push_back(string(pch));
-        pch = strtok(NULL, "|");
-    }
-}
-
-void EasySSL_CTX::SetVersion(const char * version) {
-    printf("Version: %s\n", version);
-    if (!strcmp(version, "SSLv3_client")) {
-        ctx_ = SSL_CTX_new(SSLv3_client_method());
-    } else if (!strcmp(version, "TLSv1_client")) {
-        ctx_ = SSL_CTX_new(TLSv1_client_method());
-    } else if (!strcmp(version, "TLSv1.1_client")) {
-        ctx_ = SSL_CTX_new(TLSv1_1_client_method());
-    } else if (!strcmp(version, "TLSv1.2_client")) {
-        ctx_ = SSL_CTX_new(TLSv1_2_client_method());
-    } else if (!strcmp(version, "Compatible_client")) {
-        ctx_ = SSL_CTX_new(SSLv23_client_method());
-        SSL_CTX_set_options(ctx_, SSL_OP_NO_SSLv2);
-    } else if (!strcmp(version, "SSLv3_server")) {
-        ctx_ = SSL_CTX_new(SSLv3_server_method());
-        SSL_CTX_set_options(ctx_, SSL_OP_SINGLE_DH_USE);
-        SSL_CTX_set_tmp_dh_callback(ctx_, tmp_dh_callback);
-    } else if (!strcmp(version, "TLSv1_server")) {
-        ctx_ = SSL_CTX_new(TLSv1_server_method());
-        SSL_CTX_set_options(ctx_, SSL_OP_SINGLE_DH_USE);
-        SSL_CTX_set_tmp_dh_callback(ctx_, tmp_dh_callback);
-    } else if (!strcmp(version, "TLSv1.1_server")) {
-        ctx_ = SSL_CTX_new(TLSv1_1_server_method());
-        SSL_CTX_set_options(ctx_, SSL_OP_SINGLE_DH_USE);
-        SSL_CTX_set_tmp_dh_callback(ctx_, tmp_dh_callback);
-    } else if (!strcmp(version, "TLSv1.2_server")) {
-        ctx_ = SSL_CTX_new(TLSv1_2_server_method());
-        SSL_CTX_set_options(ctx_, SSL_OP_SINGLE_DH_USE);
-        SSL_CTX_set_tmp_dh_callback(ctx_, tmp_dh_callback);
-    } else if (!strcmp(version, "Compatible_server")) {
-        ctx_ = SSL_CTX_new(SSLv23_server_method());
-        SSL_CTX_set_options(ctx_, SSL_OP_NO_SSLv2 | SSL_OP_SINGLE_DH_USE);
-        SSL_CTX_set_tmp_dh_callback(ctx_, tmp_dh_callback);
-    } else {
-        handle_error("** illegal SSL/TLS version!");
-    }
-    SSL_CTX_set_mode(ctx_, SSL_MODE_AUTO_RETRY);
-}
-
-void EasySSL_CTX::SetAuthentication(const char * auth) {
-    int mode;
-    if (!strcmp(auth, "AUTH_NONE"))
-        mode = SSL_VERIFY_NONE;
-    if (!strcmp(auth, "AUTH_REQUEST"))
-        mode = SSL_VERIFY_PEER;
-    if (!strcmp(auth, "AUTH_REQUIRE"))
-        mode = SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
-    SSL_CTX_set_verify(ctx_, mode, NULL);
-}
-
-void EasySSL_CTX::SetCipherSuite(const char * cipher_list) {
-    if (SSL_CTX_set_cipher_list(ctx_, cipher_list) != 1)
-        handle_error("Error setting cipher list (no valid ciphers)");
-}
-
-// On success, the function returns 1, otherwise fail.
-void EasySSL_CTX::LoadCACert(const char * cA_filename) {
-    if (cA_filename == NULL || !strcmp(cA_filename, ""))  // empty filename
-        handle_error("Error loading CA file, because the CA certificate filename is empty");
-    if (SSL_CTX_load_verify_locations(ctx_, cA_filename, NULL) != 1)
-        handle_error("Error loading CA file");
-    cA_file_ = cA_filename;
-}
-
-void EasySSL_CTX::SetCRLFile(const char * cRL_file) {
-    cRL_file_ = "crl.pem";
-    if (cRL_file == NULL || !strcmp(cRL_file, ""))
-        fprintf(stderr, "The CRL filename is empty. Using the default CRL filename \"crl.pem\"");
-    cRL_file_ = cRL_file;
-}
-
-// On success, the function returns 1, otherwise fail.
-void EasySSL_CTX::LoadOwnCert(const char * cert_filename) {
-    if (cert_filename == NULL || !strcmp(cert_filename, ""))
-        handle_error("Error loading own certificate, because the certicate filename is empty");
-    if (SSL_CTX_use_certificate_chain_file(ctx_, cert_filename) != 1)
-        handle_error("Error loading own certificate from file");
-}
-
-// On success, the function returns 1, otherwise fail.
-void EasySSL_CTX::LoadOwnPrivateKey(const char * private_key_filename) {
-    if (private_key_filename == NULL || !strcmp(private_key_filename, ""))
-        handle_error("Error loading private key, because the private key filename is empty");
-    if (SSL_CTX_use_PrivateKey_file(ctx_, private_key_filename,
-                                    SSL_FILETYPE_PEM) != 1)
-        handle_error("Error loading private key from file");
-}
-
-void EasySSL_CTX::Set_acc_san(vector<string> acc_san) {
-    acc_san_ = acc_san;
-}
-
-void EasySSL_CTX::CreateListenSocket(const char * host_port) {
-    bio_ = BIO_new_accept(const_cast<char *>(host_port));
-    if (!bio_)
-        handle_error("Error creating server socket");
-    if (BIO_do_accept(bio_) <= 0)
-        handle_error("Error binding server socket");
-}
-
-EasySSL EasySSL_CTX::AcceptSocketConnection() {
-    if (BIO_do_accept(bio_) <= 0)
-        handle_error("Error accepting connection");
-    BIO * client = BIO_pop(bio_);
-    SSL * ssl;
-    if (!(ssl = SSL_new(ctx_)))
-        handle_error("Error creating new SSL");
-    SSL_set_accept_state(ssl);
-    SSL_set_bio(ssl, client, client);
-    EasySSL easyssl(ssl, cA_file_, cRL_file_, acc_san_);
-    return easyssl;
-}
-
-EasySSL EasySSL_CTX::SocketConnect(const char * address) {
-    BIO * bio = BIO_new_connect(const_cast<char *>(address));
-    if (!bio)
-        handle_error("Error creating connection BIO");
-    if (BIO_do_connect(bio) <= 0)
-        handle_error("Error connecting to remote machine");
-    SSL * ssl = SSL_new(ctx_);
-    if (!ssl)
-        handle_error("Error creating new SSL");
-    SSL_set_bio(ssl, bio, bio);
-    EasySSL easyssl(ssl, cA_file_, cRL_file_, acc_san_);
-    return easyssl;
-}
-
-//////////////////////////////////////////////////////////////////////
-// EasySSL_CTX end
-//////////////////////////////////////////////////////////////////////
-
-//////////////////////////////////////////////////////////////////////
-// EasySSL begin
-//////////////////////////////////////////////////////////////////////
-
-EasySSL::EasySSL(SSL * ssl, const char * cA_file, const char * cRL_file,
-                 vector<string> acc_san) {
-    ssl_ = ssl;
-    cA_file_ = cA_file;
-    cRL_file_ = cRL_file;
-    acc_san_ = acc_san;
-}
-
-EasySSL::~EasySSL() {}
-
-void EasySSL::SSLAccept() {
-    if (SSL_accept(ssl_) <= 0)
-        handle_error("Error accepting SSL connection");
-    if (!CRLCheck())
-        handle_error("Error checking peer certificate against CRL");
-    long post_err;
-    if ((post_err = SANCheck()) != X509_V_OK) {
-        fprintf(stderr, "-Error: peer certificate: %s\n",
-            X509_verify_cert_error_string(post_err));
-        handle_error("Error checking SSL object after connection");
-    }
-}
-
-void EasySSL::SSLConnect() {
-    if(SSL_connect(ssl_) <= 0)
-        handle_error("Error connecting SSL connection");
-    if (!CRLCheck())
-        handle_error("Error checking peer certificate against CRL");
-    long post_err;
-    if ((post_err = SANCheck()) != X509_V_OK) {
-        fprintf(stderr, "-Error: peer certificate: %s\n",
-            X509_verify_cert_error_string(post_err));
-        handle_error("Error checking SSL object after connection");
-    }
 }
 
 char * GetCertCRLURI(X509 * cert) {
@@ -446,7 +157,7 @@ int RetrieveCRLviaHTTP(const char * uri, const char * cRL_filename) {
     }
 
     if (!succ_parsing) {
-        handle_error("Error parsing the URI of crlDistributionPoints");
+        HANDLE_ERROR("Error parsing the URI of crlDistributionPoints");
     }
     char portstr[100];
     sprintf(portstr, "%d", port);
@@ -471,6 +182,299 @@ int RetrieveCRLviaHTTP(const char * uri, const char * cRL_filename) {
     BIO_free(out);
 }
 
+char * GetConfString(const CONF * conf, const char * section, const char * key) {
+    char * ret;
+    if (!(ret = NCONF_get_string(conf, section, key))) {
+        fprintf(stderr, "Error finding \"%s\" in [%s]\n", key, section);
+        HANDLE_ERROR("Errors finding string");
+    }
+    return ret;
+}
+
+DH * dh512 = NULL;
+DH * dh1024 = NULL;
+
+// reads the DH params from the files and loads them into the global params.
+void init_dhparams(void) {
+    BIO * bio;
+
+    bio = BIO_new_file("dh512.pem", "r");
+    if (!bio)
+        HANDLE_ERROR("Error opening file dh512.pem");
+    dh512 = PEM_read_bio_DHparams(bio, NULL, NULL, NULL);
+    if (!dh512)
+        HANDLE_ERROR("Error reading DH parameters from dh512.pem");
+    BIO_free(bio);
+
+    bio = BIO_new_file("dh1024.pem", "r");
+    if (!bio)
+        HANDLE_ERROR("Error opening file dh1024.pem");
+    dh1024 = PEM_read_bio_DHparams(bio, NULL, NULL, NULL);
+    if (!dh1024)
+        HANDLE_ERROR("Error reading DH parameters from dh1024.pem");
+    BIO_free(bio);
+}
+
+// simply switches on the required key size and returns either a 512-bit DH
+// params or a 1024-bit DH params.
+// This function intertionally does not try to perform any on-the-fly
+// generation of params.
+DH * tmp_dh_callback(SSL * ssl, int is_export, int keylength) {
+    DH * ret;
+
+    if (!dh512 || !dh1024)
+        init_dhparams();
+
+    switch (keylength) {
+    case 512:
+        ret = dh512;
+        break;
+    case 1024:
+    default:
+        //generating DH params is too costly to do on the fly
+        ret = dh1024;
+        break;
+    }
+    return ret;
+}
+
+//////////////////////////////////////////////////////////////////////
+// Utility Function end
+//////////////////////////////////////////////////////////////////////
+
+//////////////////////////////////////////////////////////////////////
+// EasySSL_CTX begin
+//////////////////////////////////////////////////////////////////////
+void EasySSL_CTX::InitEasySSL(void) {
+    SSL_library_init();
+    OpenSSL_add_all_algorithms();
+    SSL_load_error_strings();
+    RAND_load_file("/dev/urandom", 1024);  // seed prng
+    if (!ThreadSetup())
+        HANDLE_ERROR("OpenSSL thread setup failed!\n");
+}
+
+void EasySSL_CTX::FreeEasySSL(void) {
+    EVP_cleanup();
+    ERR_free_strings();
+    ThreadCleanup();
+}
+
+EasySSL_CTX::EasySSL_CTX() {
+    ctx_ = NULL;
+    bio_ = NULL;
+}
+
+EasySSL_CTX::~EasySSL_CTX(void) {
+    if (ctx_)
+        SSL_CTX_free(ctx_);
+    if (bio_)
+        BIO_free(bio_);
+}
+
+void EasySSL_CTX::LoadConf(const char * conf_filename) {
+    long err = 0;
+    CONF * conf = NCONF_new(NCONF_default());
+    if (!NCONF_load(conf, conf_filename, &err)) {
+        if (err == 0) {
+            HANDLE_ERROR("Error opening configuration file");
+        } else {
+            fprintf(stderr, "Error in %s on line %li\n", conf_filename, err);
+            HANDLE_ERROR("Errors parsing configuration file");
+        }
+    }
+
+    SetVersion(GetConfString(conf, NULL, "Version"));
+    SetVerification(GetConfString(conf, NULL, "CertificateVerification"));
+    SetCipherSuite(GetConfString(conf, NULL, "CipherSuite"));
+
+    LoadCACert(GetConfString(conf, NULL, "CAFile"));
+    SetCRLFile(GetConfString(conf, NULL, "CRLFile"));
+    // optional own cert and own prk
+    char * file = GetConfString(conf, NULL, "OwnCert");
+    if (strcmp(file, ""))
+        LoadOwnCert(file);
+    file = GetConfString(conf, NULL, "OwnPrivateKey");
+    if (strcmp(file, ""))
+        LoadOwnPrivateKey(file);
+
+    char * acc_san_str = GetConfString(conf, NULL, "AcceptableSubjectAltName");
+    char * pch = strtok (acc_san_str, "|");
+    while (pch) {
+        acc_san_.push_back(string(pch));
+        pch = strtok(NULL, "|");
+    }
+}
+
+void EasySSL_CTX::SetVersion(const char * version) {
+    printf("Version: %s\n", version);
+    if (!strcmp(version, "SSLv3_client")) {
+        ctx_ = SSL_CTX_new(SSLv3_client_method());
+    } else if (!strcmp(version, "TLSv1_client")) {
+        ctx_ = SSL_CTX_new(TLSv1_client_method());
+    } else if (!strcmp(version, "TLSv1.1_client")) {
+        ctx_ = SSL_CTX_new(TLSv1_1_client_method());
+    } else if (!strcmp(version, "TLSv1.2_client")) {
+        ctx_ = SSL_CTX_new(TLSv1_2_client_method());
+    } else if (!strcmp(version, "Compatible_client")) {
+        ctx_ = SSL_CTX_new(SSLv23_client_method());
+        SSL_CTX_set_options(ctx_, SSL_OP_NO_SSLv2);
+    } else if (!strcmp(version, "SSLv3_server")) {
+        ctx_ = SSL_CTX_new(SSLv3_server_method());
+        SSL_CTX_set_options(ctx_, SSL_OP_SINGLE_DH_USE);
+        SSL_CTX_set_tmp_dh_callback(ctx_, tmp_dh_callback);
+    } else if (!strcmp(version, "TLSv1_server")) {
+        ctx_ = SSL_CTX_new(TLSv1_server_method());
+        SSL_CTX_set_options(ctx_, SSL_OP_SINGLE_DH_USE);
+        SSL_CTX_set_tmp_dh_callback(ctx_, tmp_dh_callback);
+    } else if (!strcmp(version, "TLSv1.1_server")) {
+        ctx_ = SSL_CTX_new(TLSv1_1_server_method());
+        SSL_CTX_set_options(ctx_, SSL_OP_SINGLE_DH_USE);
+        SSL_CTX_set_tmp_dh_callback(ctx_, tmp_dh_callback);
+    } else if (!strcmp(version, "TLSv1.2_server")) {
+        ctx_ = SSL_CTX_new(TLSv1_2_server_method());
+        SSL_CTX_set_options(ctx_, SSL_OP_SINGLE_DH_USE);
+        SSL_CTX_set_tmp_dh_callback(ctx_, tmp_dh_callback);
+    } else if (!strcmp(version, "Compatible_server")) {
+        ctx_ = SSL_CTX_new(SSLv23_server_method());
+        SSL_CTX_set_options(ctx_, SSL_OP_NO_SSLv2 | SSL_OP_SINGLE_DH_USE);
+        SSL_CTX_set_tmp_dh_callback(ctx_, tmp_dh_callback);
+    } else {
+        HANDLE_ERROR("** illegal SSL/TLS version!");
+    }
+    SSL_CTX_set_mode(ctx_, SSL_MODE_AUTO_RETRY);
+}
+
+void EasySSL_CTX::SetVerification(const char * verify) {
+    int mode;
+    if (!strcmp(verify, "AUTH_NONE"))
+        mode = SSL_VERIFY_NONE;
+    if (!strcmp(verify, "AUTH_REQUEST"))
+        mode = SSL_VERIFY_PEER;
+    if (!strcmp(verify, "AUTH_REQUIRE"))
+        mode = SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
+    SSL_CTX_set_verify(ctx_, mode, NULL);
+}
+
+void EasySSL_CTX::SetCipherSuite(const char * cipher_list) {
+    if (SSL_CTX_set_cipher_list(ctx_, cipher_list) != 1)
+        HANDLE_ERROR("Error setting cipher list (no valid ciphers)");
+}
+
+// On success, the function returns 1, otherwise fail.
+void EasySSL_CTX::LoadCACert(const char * cA_filename) {
+    if (cA_filename == NULL || !strcmp(cA_filename, ""))  // empty filename
+        HANDLE_ERROR("Error loading CA file, because the CA certificate filename is empty");
+    if (SSL_CTX_load_verify_locations(ctx_, cA_filename, NULL) != 1)
+        HANDLE_ERROR("Error loading CA file");
+    cA_file_ = cA_filename;
+}
+
+void EasySSL_CTX::SetCRLFile(const char * cRL_file) {
+    cRL_file_ = "crl.pem";
+    if (cRL_file == NULL || !strcmp(cRL_file, ""))
+        fprintf(stderr, "The CRL filename is empty. Using the default CRL filename \"crl.pem\"");
+    cRL_file_ = cRL_file;
+}
+
+// On success, the function returns 1, otherwise fail.
+void EasySSL_CTX::LoadOwnCert(const char * cert_filename) {
+    if (cert_filename == NULL || !strcmp(cert_filename, ""))
+        HANDLE_ERROR("Error loading own certificate, because the certicate filename is empty");
+    if (SSL_CTX_use_certificate_chain_file(ctx_, cert_filename) != 1)
+        HANDLE_ERROR("Error loading own certificate from file");
+}
+
+// On success, the function returns 1, otherwise fail.
+void EasySSL_CTX::LoadOwnPrivateKey(const char * private_key_filename) {
+    if (private_key_filename == NULL || !strcmp(private_key_filename, ""))
+        HANDLE_ERROR("Error loading private key, because the private key filename is empty");
+    if (SSL_CTX_use_PrivateKey_file(ctx_, private_key_filename,
+                                    SSL_FILETYPE_PEM) != 1)
+        HANDLE_ERROR("Error loading private key from file");
+}
+
+void EasySSL_CTX::Set_acc_san(vector<string> acc_san) {
+    acc_san_ = acc_san;
+}
+
+void EasySSL_CTX::CreateListenSocket(const char * host_port) {
+    bio_ = BIO_new_accept(const_cast<char *>(host_port));
+    if (!bio_)
+        HANDLE_ERROR("Error creating server socket");
+    if (BIO_do_accept(bio_) <= 0)
+        HANDLE_ERROR("Error binding server socket");
+}
+
+EasySSL EasySSL_CTX::AcceptSocketConnection() {
+    if (BIO_do_accept(bio_) <= 0)
+        HANDLE_ERROR("Error accepting connection");
+    BIO * client = BIO_pop(bio_);
+    SSL * ssl;
+    if (!(ssl = SSL_new(ctx_)))
+        HANDLE_ERROR("Error creating new SSL");
+    SSL_set_accept_state(ssl);
+    SSL_set_bio(ssl, client, client);
+    EasySSL easyssl(ssl, cA_file_, cRL_file_, acc_san_);
+    return easyssl;
+}
+
+EasySSL EasySSL_CTX::SocketConnect(const char * address) {
+    BIO * bio = BIO_new_connect(const_cast<char *>(address));
+    if (!bio)
+        HANDLE_ERROR("Error creating connection BIO");
+    if (BIO_do_connect(bio) <= 0)
+        HANDLE_ERROR("Error connecting to remote machine");
+    SSL * ssl = SSL_new(ctx_);
+    if (!ssl)
+        HANDLE_ERROR("Error creating new SSL");
+    SSL_set_bio(ssl, bio, bio);
+    EasySSL easyssl(ssl, cA_file_, cRL_file_, acc_san_);
+    return easyssl;
+}
+
+//////////////////////////////////////////////////////////////////////
+// EasySSL_CTX end
+//////////////////////////////////////////////////////////////////////
+
+//////////////////////////////////////////////////////////////////////
+// EasySSL begin
+//////////////////////////////////////////////////////////////////////
+
+EasySSL::EasySSL(SSL * ssl, const char * cA_file, const char * cRL_file,
+                 vector<string> acc_san) {
+    ssl_ = ssl;
+    cA_file_ = cA_file;
+    cRL_file_ = cRL_file;
+    acc_san_ = acc_san;
+}
+
+void EasySSL::SSLAccept() {
+    if (SSL_accept(ssl_) <= 0)
+        HANDLE_ERROR("Error accepting SSL connection");
+    if (!CRLCheck())
+        HANDLE_ERROR("Error checking peer certificate against CRL");
+    long post_err;
+    if ((post_err = SANCheck()) != X509_V_OK) {
+        fprintf(stderr, "-Error: peer certificate: %s\n",
+            X509_verify_cert_error_string(post_err));
+        HANDLE_ERROR("Error checking SSL object after connection");
+    }
+}
+
+void EasySSL::SSLConnect() {
+    if(SSL_connect(ssl_) <= 0)
+        HANDLE_ERROR("Error connecting SSL connection");
+    if (!CRLCheck())
+        HANDLE_ERROR("Error checking peer certificate against CRL");
+    long post_err;
+    if ((post_err = SANCheck()) != X509_V_OK) {
+        fprintf(stderr, "-Error: peer certificate: %s\n",
+            X509_verify_cert_error_string(post_err));
+        HANDLE_ERROR("Error checking SSL object after connection");
+    }
+}
+
 int EasySSL::CRLCheck() {
     X509 * cert;
     X509_STORE * store;
@@ -482,45 +486,45 @@ int EasySSL::CRLCheck() {
 
     // create the cert store and set the verify callback
     if (!(store = X509_STORE_new()))
-        handle_error("Error creating X509_STORE_CTX object");
+        HANDLE_ERROR("Error creating X509_STORE_CTX object");
     //X509_STORE_set_verify_cb_func(store, verify_callback);
 
     // load the CA certificates and CRLs
     // load_locations can be replaced with lookups instead.
     if (X509_STORE_load_locations(store, cA_file_, NULL) != 1)
-        handle_error("Error loading the CA file");
+        HANDLE_ERROR("Error loading the CA file");
     // create a X509_LOOKUP object, add to the store,  assign the lookup the CRL file
     if (!(lookup = X509_STORE_add_lookup(store, X509_LOOKUP_file())))
-        handle_error("Error creating X509_LOOKUP object");
+        HANDLE_ERROR("Error creating X509_LOOKUP object");
     if (X509_load_crl_file(lookup, cRL_file_, X509_FILETYPE_PEM) != 1) {
         fprintf(stderr, "No local CRL file. Trying to download CRL from the crlDistributionPoint extension in the CA certificate\n");
         FILE * fp;
         X509 * cacert;
         if (!(fp = fopen(cA_file_, "r")))
-            handle_error("Error reading CA certificate file");
+            HANDLE_ERROR("Error reading CA certificate file");
         if (!(cacert = PEM_read_X509(fp, 0, 0, 0)))
-            handle_error("Error reading CA certificate in file");
+            HANDLE_ERROR("Error reading CA certificate in file");
         fclose(fp);
 
         char * uri = GetCertCRLURI(cert);
         if (!uri)
-            handle_error("Error reading crlDistributionPoint from certificate");
+            HANDLE_ERROR("Error reading crlDistributionPoint from certificate");
         if (RetrieveCRLviaHTTP(uri, cRL_file_)) {
             fprintf(stderr, "CRL file downloaded. Now perform CRL checking again\n");
             if (X509_load_crl_file(lookup, cRL_file_, X509_FILETYPE_PEM) != 1)
-                handle_error("Error reading the downloaded CRL file");
+                HANDLE_ERROR("Error reading the downloaded CRL file");
         } else {
             fprintf(stderr, "Fail to download CRL via HTTP\n");
-            handle_error("Error downloading CRL");
+            HANDLE_ERROR("Error downloading CRL");
         }
     }
     X509_STORE_set_flags(store, X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL);
 
     // create a verification context and initialize it
     if (!(verify_ctx = X509_STORE_CTX_new()))
-        handle_error("Error creating X509_STORE_CTX object");
+        HANDLE_ERROR("Error creating X509_STORE_CTX object");
     if (X509_STORE_CTX_init(verify_ctx, store, cert, NULL) != 1)
-        handle_error("Error initializing verification context");
+        HANDLE_ERROR("Error initializing verification context");
 
     // verify the certificate, 1 on success, 0 on failure.
     return X509_verify_cert(verify_ctx);
@@ -534,7 +538,7 @@ long EasySSL::SANCheck() {
         return SSL_get_verify_result(ssl_);
 
     if (!acc_san_.size())
-        handle_error("AcceptableSubjectAltName is empty. Can't authenticate the peer");
+        HANDLE_ERROR("AcceptableSubjectAltName is empty. Can't authenticate the peer");
 
     STACK_OF(GENERAL_NAME) * san_names = NULL;
     san_names = (STACK_OF(GENERAL_NAME) *)X509_get_ext_d2i(cert, NID_subject_alt_name, NULL, NULL);

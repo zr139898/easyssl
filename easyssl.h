@@ -6,6 +6,7 @@
 #include <openssl/bio.h>
 #include <openssl/err.h>
 #include <openssl/x509v3.h>
+#include <openssl/x509_vfy.h>
 #include <openssl/conf.h>
 #include <iostream>
 #include <vector>
@@ -13,11 +14,6 @@
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
-
-
-
-
-#include <openssl/x509_vfy.h>
 
 //////////////////////////////////////////////////////////////////////
 // Multithread Support begin
@@ -46,14 +42,13 @@ int THREAD_cleanup(void);
 // Multithread Support end
 //////////////////////////////////////////////////////////////////////
 
-#define handle_error(msg) {fprintf(stderr, "** %s:%i %s\n", __FILE__, __LINE__, msg); \
+#define HANDLE_ERROR(msg) {fprintf(stderr, "** %s:%i %s\n", __FILE__, __LINE__, msg); \
     ERR_print_errors_fp(stderr); \
     exit(-1);}
 
 using namespace std;
 
-void seed_prng(void);
-int verify_callback(int preverify_ok, X509_STORE_CTX * ctx);
+// int verify_callback(int preverify_ok, X509_STORE_CTX * ctx);
 
 // EasySSL_CTX objects server as containers for settings for the
 // TLS/SSL connection to be made by a programs.
@@ -84,7 +79,7 @@ public:
     void LoadConf(const char * conf_filename);
 
     void SetVersion(const char * version);
-    void SetAuthentication(const char * auth);
+    void SetVerification(const char * verify);
     void SetCipherSuite(const char * cipher_list);
     
     void LoadCACert(const char * cA_filename);
@@ -127,8 +122,6 @@ public:
     EasySSL() {}
     EasySSL(SSL * ssl, const char * cA_file, const char * cRL_file,
         vector<string> acc_san);
-    
-    ~EasySSL();
 
     // for server, blocks and waits for a client to initiate a TLS/SSL handshake
     void SSLAccept();

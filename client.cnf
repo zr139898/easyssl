@@ -1,9 +1,6 @@
-[SSLConf]
 Version = Compatible_client
-Authentication = AUTH_REQUIRE # AUTH_NONE, AUTH_REQUEST, AUTH_REQUIRE
+CertificateVerification = AUTH_REQUIRE # AUTH_NONE, AUTH_REQUEST, AUTH_REQUIRE
 CipherSuite = ALL:!LOW:!EXP:!MD5:!aNULL:@STRENGTH
-
-[Verification]
 CAFile = rootCAcert.pem
 CRLFile = crl.pem
 OwnCert = clientcert.pem
