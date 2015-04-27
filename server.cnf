@@ -1,8 +1,18 @@
-Version = Compatible_server # SSLv3, TLSv1, TLSv1.1, TLSv1.2, Compatible
-CertificateVerification = AUTH_REQUIRE # AUTH_NONE, AUTH_REQUEST, AUTH_REQUIRE
+# Version for server: SSLv3_server, TLSv1_server, TLSv1.1_server, TLSv1.2_server
+# or Compatible_server (support all the four versions).
+Version = Compatible_server
+
+# AUTH_NONE, AUTH_REQUEST, AUTH_REQUIRE
+CertificateVerification = AUTH_REQUIRE
+
 CipherSuite = ALL:!LOW:!EXP:!MD5:!aNULL:@STRENGTH
+
 CAFile = rootCAcert.pem
+
 CRLFile = crl.pem
+
 OwnCert = servercert.pem
+
 OwnPrivateKey = serverkey.pem
+
 AcceptableSubjectAltName = *@zork.org

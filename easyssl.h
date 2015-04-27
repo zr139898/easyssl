@@ -128,6 +128,7 @@ public:
     void SSLAccept();
     // for client, initiates a TLS/SSL handshake with a server.
     void SSLConnect();
+    // shutdown a TLS/SSL connection, also close the underlying Socket connection.
     void Shutdown();
 
     // blocking read operation.

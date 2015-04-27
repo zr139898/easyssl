@@ -1,8 +1,18 @@
+# Version for client: SSL_v3_client, TLSv1_client, TLSv1.1_client, TLSv1.2_client
+# or Compatible_client (support all the four versions).
 Version = Compatible_client
-CertificateVerification = AUTH_REQUIRE # AUTH_NONE, AUTH_REQUEST, AUTH_REQUIRE
+
+# AUTH_NONE, AUTH_REQUEST, AUTH_REQUIRE
+CertificateVerification = AUTH_REQUIRE
+
 CipherSuite = ALL:!LOW:!EXP:!MD5:!aNULL:@STRENGTH
+
 CAFile = rootCAcert.pem
+
 CRLFile = crl.pem
+
 OwnCert = clientcert.pem
+
 OwnPrivateKey = clientkey.pem
+
 AcceptableSubjectAltName = splat.zork.org
