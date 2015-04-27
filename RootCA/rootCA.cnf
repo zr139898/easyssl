@@ -40,9 +40,9 @@ x509_extensions		= root_ca_extensions
 countryName         = US
 stateOrProvinceName = Virginia
 localityName        = Fairfax
-organizationName    = Zork.org
-commonName          = Root CA
-emailAddress        = root@zork.org
+organizationName    = Root CA
+commonName          = easyssl.com
+emailAddress        = root@easyssl.com
 
 [ root_ca_extensions ]
 basicConstraints = CA:true
