@@ -398,6 +398,26 @@ void EasySSL_CTX::Set_acc_san(vector<string> acc_san) {
     acc_san_ = acc_san;
 }
 
+void EasySSL_CTX::LoadAccSanFromConfFile(const char * conf_filename) {
+    long err = 0;
+    CONF * conf = NCONF_new(NCONF_default());
+    if (!NCONF_load(conf, conf_filename, &err)) {
+        if (err == 0) {
+            HANDLE_ERROR("Error opening configuration file");
+        } else {
+            fprintf(stderr, "Error in %s on line %li\n", conf_filename, err);
+            HANDLE_ERROR("Errors parsing configuration file");
+        }
+    }
+    
+    char * acc_san_str = GetConfString(conf, NULL, "AcceptableSubjectAltName");
+    char * pch = strtok (acc_san_str, "|");
+    while (pch) {
+        acc_san_.push_back(string(pch));
+        pch = strtok(NULL, "|");
+    }
+}
+
 void EasySSL_CTX::CreateListenSocket(const char * host_port) {
     bio_ = BIO_new_accept(const_cast<char *>(host_port));
     if (!bio_)

@@ -89,7 +89,7 @@ public:
     void LoadOwnPrivateKey(const char * private_key_filename);
     
     void Set_acc_san(vector<string> acc_san);
-    
+    void LoadAccSanFromConfFile(const char * conf_filename);
     // for server, create a listening TCP/IP socket and binding the port to it.
     void CreateListenSocket(const char * host_port);
     // for server, blocks and awaits an incoming TCP/IP socket connection, and
@@ -106,10 +106,15 @@ public:
 
 class EasySSL {
 private:
+    friend class EasySSL_CTX;
     SSL * ssl_;
     const char * cA_file_;
     const char * cRL_file_;
     vector<string> acc_san_; // hold the AcceptableSubjectAltName in conf file
+    
+    EasySSL() {}
+    EasySSL(SSL * ssl, const char * cA_file, const char * cRL_file,
+        vector<string> acc_san);
     
     // Check the status of peer certificates against the certificate revocation
     // list of the CA
@@ -119,10 +124,6 @@ private:
     long SANCheck();
 
 public:
-    // EasySSL() {}
-    EasySSL(SSL * ssl, const char * cA_file, const char * cRL_file,
-        vector<string> acc_san);
-
     // for server, blocks and waits for a client to initiate a TLS/SSL handshake
     void SSLAccept();
     // for client, initiates a TLS/SSL handshake with a server.
