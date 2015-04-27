@@ -25,8 +25,9 @@ int main(void) {
     // ctx.LoadOwnCert(CLIENTCERT);
     // ctx.LoadOwnPrivateKey(CLIENTPRK);
     
-    EasySSL ssl = ctx.SocketConnect(const_cast<char *>(ADDRESS));
-    ssl.SSLConnect();
+    EasySSL * ssl;
+    ssl = ctx.SocketConnect(const_cast<char *>(ADDRESS));
+    ssl->SSLConnect();
     
     fprintf(stderr, "Connection Opened\n");
     int len, len_written;
@@ -36,10 +37,10 @@ int main(void) {
         if (!fgets(buf, sizeof(buf), stdin))
             break;
         for (len_written = 0; len_written < sizeof(buf); len_written += len) {
-            len = ssl.Write(buf + len_written, sizeof(buf) - len_written);
+            len = ssl->Write(buf + len_written, sizeof(buf) - len_written);
         }
     }
-    ssl.Shutdown();
+    ssl->Shutdown();
     
     
     cout << "Connection Closed" << endl;

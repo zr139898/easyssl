@@ -54,10 +54,11 @@ int main(void) {
     ctx.CreateListenSocket(const_cast<char *>(PORT));
     
     THREAD_TYPE tid;
+    EasySSL * ssl;
     
     while (1) {
-        EasySSL ssl = ctx.AcceptSocketConnection();
-        THREAD_CREATE(tid, server_thread, &ssl);
+        ssl = ctx.AcceptSocketConnection();
+        THREAD_CREATE(tid, server_thread, ssl);
     }
     
     EasySSL_CTX::FreeEasySSL();
