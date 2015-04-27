@@ -6,15 +6,15 @@
 #include <openssl/bio.h>
 #include <openssl/err.h>
 #include <openssl/x509v3.h>
+#include <openssl/conf.h>
 #include <iostream>
 #include <vector>
 #include <string>
 #include <cstring>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <openssl/conf.h>
+#include <cstdio>
+#include <cstdlib>
+
+
 
 
 #include <openssl/x509_vfy.h>
@@ -52,8 +52,6 @@ int THREAD_cleanup(void);
 
 using namespace std;
 
-void init_OpenSSL(void);
-void free_OpenSSL(void);
 void seed_prng(void);
 int verify_callback(int preverify_ok, X509_STORE_CTX * ctx);
 
