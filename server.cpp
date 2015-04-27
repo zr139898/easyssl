@@ -54,10 +54,9 @@ int main(void) {
     ctx.CreateListenSocket(const_cast<char *>(PORT));
     
     THREAD_TYPE tid;
-    EasySSL ssl;
     
     while (1) {
-        ssl = ctx.AcceptSocketConnection();
+        EasySSL ssl = ctx.AcceptSocketConnection();
         THREAD_CREATE(tid, server_thread, &ssl);
     }
     

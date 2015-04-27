@@ -119,7 +119,7 @@ private:
     long SANCheck();
 
 public:
-    EasySSL() {}
+    // EasySSL() {}
     EasySSL(SSL * ssl, const char * cA_file, const char * cRL_file,
         vector<string> acc_san);
 
