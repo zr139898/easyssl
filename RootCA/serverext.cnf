@@ -1,0 +1,4 @@
+[ usr_ext ]
+basicConstraints = CA:false
+subjectAltName = DNS:server.easyssl.com, email:server@easyssl.com
+crlDistributionPoints = URI:http://easyssl.com/crl.pem

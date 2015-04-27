@@ -1,0 +1,18 @@
+[ req ]
+default_md          = sha1
+
+prompt              = no
+distinguished_name	= req_distinguished_name
+x509_extensions		= req_extensions
+
+[ req_distinguished_name ]
+countryName            = US
+stateOrProvinceName    = Virginia
+localityName           = Fairfax
+organizationName       = Client
+commonName             = client.easyssl.com
+emailAddress           = client@easyssl.com
+
+[ req_extensions ]
+basicConstraints = CA:false
+subjectAltName = email:copy

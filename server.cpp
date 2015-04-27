@@ -1,6 +1,4 @@
 #include "easyssl.h"
-#include <iostream>
-using namespace std;
 
 #define VERSION "Compatible_server"
 #define SERVERCERT "server.pem"

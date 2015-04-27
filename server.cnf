@@ -15,4 +15,4 @@ OwnCert = servercert.pem
 
 OwnPrivateKey = serverkey.pem
 
-AcceptableSubjectAltName = *@zork.org
+AcceptableSubjectAltName = *@easyssl.com 

@@ -1,6 +1,4 @@
 #include "easyssl.h"
-#include <iostream>
-using namespace std;
 
 #define VERSION "Compatible_client"
 #define CLIENTCERT "client.pem"
@@ -9,7 +7,7 @@ using namespace std;
 #define CADIR NULL
 #define VERIFY_MODE "AUTH_REQUEST"
 #define CIPHER_LIST "ALL:!ADH:!LOW:!EXP:!MD5:@STRENGTH"
-#define ADDRESS "splat.zork.org:6001"
+#define ADDRESS "server.easyssl.com:6001"
 
 int main(void) {
     EasySSL_CTX::InitEasySSL();

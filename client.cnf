@@ -15,4 +15,4 @@ OwnCert = clientcert.pem
 
 OwnPrivateKey = clientkey.pem
 
-AcceptableSubjectAltName = splat.zork.org
+AcceptableSubjectAltName = *.easyssl.com
