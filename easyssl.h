@@ -8,6 +8,7 @@
 #include <openssl/x509v3.h>
 #include <openssl/x509_vfy.h>
 #include <openssl/conf.h>
+#include <openssl/asn1.h>
 #include <iostream>
 #include <vector>
 #include <string>
@@ -66,6 +67,7 @@ private:
     const char * cA_file_;
     const char * cRL_file_;
     vector<string> acc_san_;  // hold the AcceptableSubjectAltName in confile
+    X509_STORE * x509_store_;  // used to verify peer cert against CRL
 
 public:
     // Application will call InitEasySSL initially and FreeEasySSL before exiting
@@ -83,7 +85,7 @@ public:
     void SetCipherSuite(const char * cipher_list);
     
     void LoadCACert(const char * cA_filename);
-    void SetCRLFile(const char * cRL_filename);
+    void LoadCRLFile(const char * cRL_filename);
     // call the two following functions only if the entity has a certificate
     void LoadOwnCert(const char * cert_filename);
     void LoadOwnPrivateKey(const char * private_key_filename);
@@ -111,10 +113,10 @@ private:
     const char * cA_file_;
     const char * cRL_file_;
     vector<string> acc_san_; // hold the AcceptableSubjectAltName in conf file
+    X509_STORE * x509_store_;  // used to verify peer cert against CRL
     
     EasySSL() {}
-    EasySSL(SSL * ssl, const char * cA_file, const char * cRL_file,
-        vector<string> acc_san);
+    EasySSL(SSL * ssl, X509_STORE * x509_store, const char * cA_file, const char * cRL_file, vector<string> acc_san);
     
     // Check the status of peer certificates against the certificate revocation
     // list of the CA

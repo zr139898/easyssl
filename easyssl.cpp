@@ -117,7 +117,38 @@ int FQDNMatch(std::vector<string> acc_san, const char * fqdn) {
     return 0;
 }
 
-char * GetCertCRLURI(X509 * cert) {
+X509_CRL * LoadCRL(const char * infile) {
+	X509_CRL * x = NULL;
+	BIO *in = NULL;
+
+    if ((in = BIO_new(BIO_s_file())) == NULL) {
+        HANDLE_ERROR("Error creating a file BIO");
+		goto end;
+    }
+
+    if (BIO_read_filename(in,infile) <= 0) {
+        HANDLE_ERROR("Error reading the CRL file");
+        goto end;
+    }
+    if ((x = PEM_read_bio_X509_CRL(in,NULL,NULL,NULL)) == NULL) {
+        HANDLE_ERROR("Error parsing CRL file with PEM format");
+		goto end;
+    }
+    
+end:
+	BIO_free(in);
+	return(x);
+}
+
+char * GetCrlDistributionPointURI(const char * cert_filename, const char * crl_filename) {
+    FILE * fp;
+    X509 * cert;
+    if (!(fp = fopen(cert_filename, "r")))
+        HANDLE_ERROR("Error reading CA certificate file");
+    if (!(cert = PEM_read_X509(fp, 0, 0, 0)))
+        HANDLE_ERROR("Error reading CA certificate in file");
+    fclose(fp);
+    
     if (cert) {
         STACK_OF(DIST_POINT) * dps = (STACK_OF(DIST_POINT) *)X509_get_ext_d2i(cert, NID_crl_distribution_points, NULL, NULL);
         if (sk_DIST_POINT_num(dps) > 0) {
@@ -135,7 +166,7 @@ char * GetCertCRLURI(X509 * cert) {
     return 0;
 }
 
-int RetrieveCRLviaHTTP(const char * uri, const char * cRL_filename) {
+int RetrieveFileviaHTTP(const char * uri, const char * cRL_filename) {
     BIO * cbio, * out;
     int len;
     char tmpbuf[1024];
@@ -263,6 +294,10 @@ void EasySSL_CTX::FreeEasySSL(void) {
 EasySSL_CTX::EasySSL_CTX() {
     ctx_ = NULL;
     bio_ = NULL;
+
+    // create the cert store
+    if (!(x509_store_ = X509_STORE_new()))
+        HANDLE_ERROR("Error creating X509_STORE object");
 }
 
 EasySSL_CTX::~EasySSL_CTX(void) {
@@ -289,7 +324,7 @@ void EasySSL_CTX::LoadConf(const char * conf_filename) {
     SetCipherSuite(GetConfString(conf, NULL, "CipherSuite"));
 
     LoadCACert(GetConfString(conf, NULL, "CAFile"));
-    SetCRLFile(GetConfString(conf, NULL, "CRLFile"));
+    LoadCRLFile(GetConfString(conf, NULL, "CRLFile"));
     // optional own cert and own prk
     char * file = GetConfString(conf, NULL, "OwnCert");
     if (strcmp(file, ""))
@@ -368,13 +403,41 @@ void EasySSL_CTX::LoadCACert(const char * cA_filename) {
     if (SSL_CTX_load_verify_locations(ctx_, cA_filename, NULL) != 1)
         HANDLE_ERROR("Error loading CA file");
     cA_file_ = cA_filename;
+    // load the CA cert into cert store
+    if (X509_STORE_load_locations(x509_store_, cA_file_, NULL) != 1)
+        HANDLE_ERROR("Error loading the CA file into cert store");
 }
 
-void EasySSL_CTX::SetCRLFile(const char * cRL_file) {
+void EasySSL_CTX::LoadCRLFile(const char * cRL_file) {
     cRL_file_ = "crl.pem";
-    if (cRL_file == NULL || !strcmp(cRL_file, ""))
+    if (cRL_file == NULL || !strcmp(cRL_file, "")) {
         fprintf(stderr, "The CRL filename is empty. Using the default CRL filename \"crl.pem\"");
-    cRL_file_ = cRL_file;
+    } else {
+        cRL_file_ = cRL_file;
+    }
+    // load the CRL into the cert store
+    X509_LOOKUP * lookup;
+    // create a X509_LOOKUP object, add to the store, assign the lookup the CRL file
+    if (!(lookup = X509_STORE_add_lookup(x509_store_, X509_LOOKUP_file())))
+        HANDLE_ERROR("Error creating X509_LOOKUP object");
+    // If there is no local crl file.
+    if (X509_load_crl_file(lookup, cRL_file_, X509_FILETYPE_PEM) != 1) {
+        fprintf(stderr, "No local CRL file. Trying to download CRL from the crlDistributionPoint extension in the CA certificate\n");
+        // get the cdp extension in the CA cert
+        char * cdp_uri = GetCrlDistributionPointURI(cA_file_, cRL_file);
+        if (!cdp_uri)
+            HANDLE_ERROR("Error reading crlDistributionPoint from CA certificate");
+        // download crl file with the URI
+        if (RetrieveFileviaHTTP(cdp_uri, cRL_file_)) {
+            fprintf(stderr, "CRL file downloaded.\n");
+            if (X509_load_crl_file(lookup, cRL_file_, X509_FILETYPE_PEM) != 1)
+                HANDLE_ERROR("Error add the downloaded CRL file to cert store");
+        } else {
+            fprintf(stderr, "Fail to download CRL via HTTP\n");
+            HANDLE_ERROR("Error downloading CRL");
+        }
+    }
+    X509_STORE_set_flags(x509_store_, X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL);
 }
 
 // On success, the function returns 1, otherwise fail.
@@ -435,7 +498,7 @@ EasySSL * EasySSL_CTX::AcceptSocketConnection() {
         HANDLE_ERROR("Error creating new SSL");
     SSL_set_accept_state(ssl);
     SSL_set_bio(ssl, client, client);
-    return new EasySSL(ssl, cA_file_, cRL_file_, acc_san_);
+    return new EasySSL(ssl, x509_store_, cA_file_, cRL_file_, acc_san_);
 }
 
 EasySSL * EasySSL_CTX::SocketConnect(const char * address) {
@@ -448,7 +511,7 @@ EasySSL * EasySSL_CTX::SocketConnect(const char * address) {
     if (!ssl)
         HANDLE_ERROR("Error creating new SSL");
     SSL_set_bio(ssl, bio, bio);
-    return new EasySSL(ssl, cA_file_, cRL_file_, acc_san_);
+    return new EasySSL(ssl, x509_store_, cA_file_, cRL_file_, acc_san_);
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -459,9 +522,10 @@ EasySSL * EasySSL_CTX::SocketConnect(const char * address) {
 // EasySSL begin
 //////////////////////////////////////////////////////////////////////
 
-EasySSL::EasySSL(SSL * ssl, const char * cA_file, const char * cRL_file,
+EasySSL::EasySSL(SSL * ssl, X509_STORE * x509_store, const char * cA_file, const char * cRL_file,
                  vector<string> acc_san) {
     ssl_ = ssl;
+    x509_store_ = x509_store;
     cA_file_ = cA_file;
     cRL_file_ = cRL_file;
     acc_san_ = acc_san;
@@ -495,53 +559,39 @@ void EasySSL::SSLConnect() {
 
 int EasySSL::CRLCheck() {
     X509 * cert;
-    X509_STORE * store;
-    X509_LOOKUP * lookup;
     X509_STORE_CTX * verify_ctx;
-    
+
+    // no peer cert, no check
     if (! (cert = SSL_get_peer_certificate(ssl_)))
         return 1;
 
-    // create the cert store and set the verify callback
-    if (!(store = X509_STORE_new()))
-        HANDLE_ERROR("Error creating X509_STORE_CTX object");
-    //X509_STORE_set_verify_cb_func(store, verify_callback);
-
-    // load the CA certificates and CRLs
-    // load_locations can be replaced with lookups instead.
-    if (X509_STORE_load_locations(store, cA_file_, NULL) != 1)
-        HANDLE_ERROR("Error loading the CA file");
-    // create a X509_LOOKUP object, add to the store,  assign the lookup the CRL file
-    if (!(lookup = X509_STORE_add_lookup(store, X509_LOOKUP_file())))
-        HANDLE_ERROR("Error creating X509_LOOKUP object");
-    if (X509_load_crl_file(lookup, cRL_file_, X509_FILETYPE_PEM) != 1) {
-        fprintf(stderr, "No local CRL file. Trying to download CRL from the crlDistributionPoint extension in the CA certificate\n");
-        FILE * fp;
-        X509 * cacert;
-        if (!(fp = fopen(cA_file_, "r")))
-            HANDLE_ERROR("Error reading CA certificate file");
-        if (!(cacert = PEM_read_X509(fp, 0, 0, 0)))
-            HANDLE_ERROR("Error reading CA certificate in file");
-        fclose(fp);
-
-        char * uri = GetCertCRLURI(cert);
-        if (!uri)
-            HANDLE_ERROR("Error reading crlDistributionPoint from certificate");
-        if (RetrieveCRLviaHTTP(uri, cRL_file_)) {
-            fprintf(stderr, "CRL file downloaded. Now perform CRL checking again\n");
+    X509_CRL * crl = LoadCRL(cRL_file_);
+    ASN1_TIME * next_update = X509_CRL_get_nextUpdate(crl);
+    int day, sec;
+    ASN1_TIME_diff(&day, &sec, NULL, next_update);
+    // If the CRL expires, download it
+    if (day < 0 || sec < 0) {
+        // get the cdp extension in the CA cert
+        char * cdp_uri = GetCrlDistributionPointURI(cA_file_, cRL_file_);
+        if (!cdp_uri)
+            HANDLE_ERROR("Error reading crlDistributionPoint from CA certificate");
+        // download crl file with the URI
+        if (RetrieveFileviaHTTP(cdp_uri, cRL_file_)) {
+            fprintf(stderr, "CRL file downloaded.\n");
+            X509_LOOKUP * lookup;
+            if (!(lookup = X509_STORE_add_lookup(x509_store_, X509_LOOKUP_file())))
+                HANDLE_ERROR("Error creating X509_LOOKUP object");
             if (X509_load_crl_file(lookup, cRL_file_, X509_FILETYPE_PEM) != 1)
-                HANDLE_ERROR("Error reading the downloaded CRL file");
+                HANDLE_ERROR("Error add the downloaded CRL file to cert store");
         } else {
             fprintf(stderr, "Fail to download CRL via HTTP\n");
             HANDLE_ERROR("Error downloading CRL");
         }
     }
-    X509_STORE_set_flags(store, X509_V_FLAG_CRL_CHECK | X509_V_FLAG_CRL_CHECK_ALL);
-
     // create a verification context and initialize it
     if (!(verify_ctx = X509_STORE_CTX_new()))
         HANDLE_ERROR("Error creating X509_STORE_CTX object");
-    if (X509_STORE_CTX_init(verify_ctx, store, cert, NULL) != 1)
+    if (X509_STORE_CTX_init(verify_ctx, x509_store_, cert, NULL) != 1)
         HANDLE_ERROR("Error initializing verification context");
 
     // verify the certificate, 1 on success, 0 on failure.
