@@ -300,6 +300,18 @@ EasySSL_CTX::EasySSL_CTX() {
         HANDLE_ERROR("Error creating X509_STORE object");
 }
 
+EasySSL_CTX::EasySSL_CTX(const EasySSL_CTX & ctx) {
+    SetVersion(ctx.version_);
+    SetVerify(ctx.verify_);
+    SetCipherSuite(ctx.cipher_suite_);
+    LoadCACert(ctx.cA_file_);
+    LoadCRLFile(ctx.cRL_file_);
+    LoadOwnCert(ctx.own_cert_file_);
+    LoadOwnPrivateKey(ctx.own_prk_file_);
+    acc_san_ = ctx.acc_san_;
+    if (!(x509_store_ = X509_STORE_new()))
+        HANDLE_ERROR("Error creating X509_STORE object");
+}
 EasySSL_CTX::~EasySSL_CTX(void) {
     if (ctx_)
         SSL_CTX_free(ctx_);
@@ -320,7 +332,7 @@ void EasySSL_CTX::LoadConf(const char * conf_filename) {
     }
 
     SetVersion(GetConfString(conf, NULL, "Version"));
-    SetVerification(GetConfString(conf, NULL, "CertificateVerification"));
+    SetVerify(GetConfString(conf, NULL, "CertificateVerify"));
     SetCipherSuite(GetConfString(conf, NULL, "CipherSuite"));
 
     LoadCACert(GetConfString(conf, NULL, "CAFile"));
@@ -342,6 +354,7 @@ void EasySSL_CTX::LoadConf(const char * conf_filename) {
 }
 
 void EasySSL_CTX::SetVersion(const char * version) {
+    version_ = version;
     printf("Version: %s\n", version);
     if (!strcmp(version, "SSLv3_client")) {
         ctx_ = SSL_CTX_new(SSLv3_client_method());
@@ -380,7 +393,8 @@ void EasySSL_CTX::SetVersion(const char * version) {
     SSL_CTX_set_mode(ctx_, SSL_MODE_AUTO_RETRY);
 }
 
-void EasySSL_CTX::SetVerification(const char * verify) {
+void EasySSL_CTX::SetVerify(const char * verify) {
+    verify_ = verify;
     int mode;
     if (!strcmp(verify, "AUTH_NONE"))
         mode = SSL_VERIFY_NONE;
@@ -392,6 +406,7 @@ void EasySSL_CTX::SetVerification(const char * verify) {
 }
 
 void EasySSL_CTX::SetCipherSuite(const char * cipher_list) {
+    cipher_suite_ = cipher_list;
     if (SSL_CTX_set_cipher_list(ctx_, cipher_list) != 1)
         HANDLE_ERROR("Error setting cipher list (no valid ciphers)");
 }
@@ -442,6 +457,7 @@ void EasySSL_CTX::LoadCRLFile(const char * cRL_file) {
 
 // On success, the function returns 1, otherwise fail.
 void EasySSL_CTX::LoadOwnCert(const char * cert_filename) {
+    own_cert_file_ = cert_filename;
     if (cert_filename == NULL || !strcmp(cert_filename, ""))
         HANDLE_ERROR("Error loading own certificate, because the certicate filename is empty");
     if (SSL_CTX_use_certificate_chain_file(ctx_, cert_filename) != 1)
@@ -450,6 +466,7 @@ void EasySSL_CTX::LoadOwnCert(const char * cert_filename) {
 
 // On success, the function returns 1, otherwise fail.
 void EasySSL_CTX::LoadOwnPrivateKey(const char * private_key_filename) {
+    own_prk_file_ = private_key_filename;
     if (private_key_filename == NULL || !strcmp(private_key_filename, ""))
         HANDLE_ERROR("Error loading private key, because the private key filename is empty");
     if (SSL_CTX_use_PrivateKey_file(ctx_, private_key_filename,

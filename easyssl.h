@@ -64,10 +64,16 @@ class EasySSL_CTX {
 private:
     SSL_CTX * ctx_;
     BIO * bio_;  // for server, holds the listening socket
+    X509_STORE * x509_store_;  // used to verify peer cert against CRL
+    const char * version_;
+    const char * verify_;
+    const char * cipher_suite_;
     const char * cA_file_;
     const char * cRL_file_;
+    const char * own_cert_file_;
+    const char * own_prk_file_;
     vector<string> acc_san_;  // hold the AcceptableSubjectAltName in confile
-    X509_STORE * x509_store_;  // used to verify peer cert against CRL
+    
 
 public:
     // Application will call InitEasySSL initially and FreeEasySSL before exiting
@@ -75,13 +81,14 @@ public:
     static void FreeEasySSL();  // called only once
 
     EasySSL_CTX();
+    EasySSL_CTX(const EasySSL_CTX & ctx);
     ~EasySSL_CTX();
     
     // provide two options: conf file or using the function for settings.
     void LoadConf(const char * conf_filename);
 
     void SetVersion(const char * version);
-    void SetVerification(const char * verify);
+    void SetVerify(const char * verify);
     void SetCipherSuite(const char * cipher_list);
     
     void LoadCACert(const char * cA_filename);
@@ -116,6 +123,7 @@ private:
     X509_STORE * x509_store_;  // used to verify peer cert against CRL
     
     EasySSL() {}
+    EasySSL(const EasySSL & easyssl) {};
     EasySSL(SSL * ssl, X509_STORE * x509_store, const char * cA_file, const char * cRL_file, vector<string> acc_san);
     
     // Check the status of peer certificates against the certificate revocation

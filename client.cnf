@@ -3,7 +3,7 @@
 Version = Compatible_client
 
 # AUTH_NONE, AUTH_REQUEST, AUTH_REQUIRE
-CertificateVerification = AUTH_REQUIRE
+CertificateVerify = AUTH_REQUIRE
 
 CipherSuite = ALL:!LOW:!EXP:!MD5:!aNULL:@STRENGTH
 
