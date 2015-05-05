@@ -14,7 +14,7 @@ void THREAD_CC server_thread(void * arg) {
 
     pthread_detach(pthread_self());
 
-    ssl->SSLAccept();
+    ssl->SSLAccept(NULL);
     fprintf(stderr, "Connection opened.\n");
     
     int len, len_read;

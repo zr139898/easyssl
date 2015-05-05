@@ -25,7 +25,7 @@ int main(void) {
     
     EasySSL * ssl;
     ssl = ctx.SocketConnect(const_cast<char *>(ADDRESS));
-    ssl->SSLConnect();
+    ssl->SSLConnect(NULL);
     
     fprintf(stderr, "Connection Opened\n");
     int len, len_written;

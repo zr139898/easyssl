@@ -57,24 +57,6 @@ int ThreadCleanup(void) {
 // Utility Function begin
 //////////////////////////////////////////////////////////////////////
 
-// int verify_callback(int preverify_ok, X509_STORE_CTX * ctx) {
-//     char data[256];
-
-//     if (!preverify_ok) {
-//         X509 * cert = X509_STORE_CTX_get_current_cert(ctx);
-//         int depth = X509_STORE_CTX_get_error_depth(ctx);
-//         int err = X509_STORE_CTX_get_error(ctx);
-
-//         fprintf(stderr, "-Error with certificate at depth: %i\n", depth);
-//         X509_NAME_oneline(X509_get_issuer_name(cert), data, 256);
-//         fprintf(stderr, "  issuer   = %s\n", data);
-//         X509_NAME_oneline(X509_get_subject_name(cert), data, 256);
-//         fprintf(stderr, "  subject  = %s\n", data);
-//         fprintf(stderr, "  err %i:%s\n", err, X509_verify_cert_error_string(err));
-//     }
-//     return preverify_ok;
-// }
-
 int wildcmp(const char *wild, const char *string) {
     // Written by Jack Handy - <A href="mailto:jakkhandy@hotmail.com">jakkhandy@hotmail.com</A>
     const char *cp = 0, *mp = 0;
@@ -109,7 +91,7 @@ int wildcmp(const char *wild, const char *string) {
     return !*wild;
 }
 
-int FQDNMatch(std::vector<string> acc_san, const char * fqdn) {
+int SANMatch(std::vector<string> acc_san, const char * fqdn) {
     for (std::vector<string>::iterator it = acc_san.begin(); it != acc_san.end(); ++it) {
         if (wildcmp((*it).c_str(), fqdn))
             return 1;
@@ -140,7 +122,7 @@ end:
 	return(x);
 }
 
-char * GetCrlDistributionPointURI(const char * cert_filename, const char * crl_filename) {
+char * GetCrlDistributionPointURI(const char * cert_filename) {
     FILE * fp;
     X509 * cert;
     if (!(fp = fopen(cert_filename, "r")))
@@ -439,7 +421,7 @@ void EasySSL_CTX::LoadCRLFile(const char * cRL_file) {
     if (X509_load_crl_file(lookup, cRL_file_, X509_FILETYPE_PEM) != 1) {
         fprintf(stderr, "No local CRL file. Trying to download CRL from the crlDistributionPoint extension in the CA certificate\n");
         // get the cdp extension in the CA cert
-        char * cdp_uri = GetCrlDistributionPointURI(cA_file_, cRL_file);
+        char * cdp_uri = GetCrlDistributionPointURI(cA_file_);
         if (!cdp_uri)
             HANDLE_ERROR("Error reading crlDistributionPoint from CA certificate");
         // download crl file with the URI
@@ -548,26 +530,26 @@ EasySSL::EasySSL(SSL * ssl, X509_STORE * x509_store, const char * cA_file, const
     acc_san_ = acc_san;
 }
 
-void EasySSL::SSLAccept() {
+void EasySSL::SSLAccept(const char * host) {
     if (SSL_accept(ssl_) <= 0)
         HANDLE_ERROR("Error accepting SSL connection");
     if (!CRLCheck())
         HANDLE_ERROR("Error checking peer certificate against CRL");
     long post_err;
-    if ((post_err = SANCheck()) != X509_V_OK) {
+    if ((post_err = SANCheck(host)) != X509_V_OK) {
         fprintf(stderr, "-Error: peer certificate: %s\n",
             X509_verify_cert_error_string(post_err));
         HANDLE_ERROR("Error checking SSL object after connection");
     }
 }
 
-void EasySSL::SSLConnect() {
+void EasySSL::SSLConnect(const char * host) {
     if(SSL_connect(ssl_) <= 0)
         HANDLE_ERROR("Error connecting SSL connection");
     if (!CRLCheck())
         HANDLE_ERROR("Error checking peer certificate against CRL");
     long post_err;
-    if ((post_err = SANCheck()) != X509_V_OK) {
+    if ((post_err = SANCheck(host)) != X509_V_OK) {
         fprintf(stderr, "-Error: peer certificate: %s\n",
             X509_verify_cert_error_string(post_err));
         HANDLE_ERROR("Error checking SSL object after connection");
@@ -589,7 +571,7 @@ int EasySSL::CRLCheck() {
     // If the CRL expires, download it
     if (day < 0 || sec < 0) {
         // get the cdp extension in the CA cert
-        char * cdp_uri = GetCrlDistributionPointURI(cA_file_, cRL_file_);
+        char * cdp_uri = GetCrlDistributionPointURI(cA_file_);
         if (!cdp_uri)
             HANDLE_ERROR("Error reading crlDistributionPoint from CA certificate");
         // download crl file with the URI
@@ -615,7 +597,7 @@ int EasySSL::CRLCheck() {
     return X509_verify_cert(verify_ctx);
 }
 
-long EasySSL::SANCheck() {
+long EasySSL::SANCheck(const char * host) {
     X509 * cert;
     
     // no peer cert, no check, return good
@@ -639,8 +621,12 @@ long EasySSL::SANCheck() {
             value = (char *)ASN1_STRING_data(current->d.rfc822Name);
             break;
         }
-        if (value && FQDNMatch(acc_san_, value))
+        // verify subjectAltName against the host info of param
+        if (host && value && !strcmp(host, value)) {
             return SSL_get_verify_result(ssl_);
+        } else if (value && SANMatch(acc_san_, value)) {
+            return SSL_get_verify_result(ssl_);
+        }
     }
     X509_free(cert);
     sk_GENERAL_NAME_pop_free(san_names, GENERAL_NAME_free);

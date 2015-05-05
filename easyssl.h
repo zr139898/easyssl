@@ -130,14 +130,19 @@ private:
     // list of the CA
     int CRLCheck();
     // Check the subjectAltName extensions in the peer certificate against
-    // AcceptableSubjectAltName in the conf file
-    long SANCheck();
+    // host string.
+    // if host == NULL, check against AcceptableSubjectAltName in the conf file
+    long SANCheck(const char * host);
 
 public:
     // for server, blocks and waits for a client to initiate a TLS/SSL handshake
-    void SSLAccept();
+    // If need to authenticate peer, pass the info via host param.
+    // If host == NULL, use the AcceptableSubjectAltName in the conf file to check.
+    void SSLAccept(const char * host);
     // for client, initiates a TLS/SSL handshake with a server.
-    void SSLConnect();
+    // If need to authenticate peer, pass the info via host param.
+    // If host == NULL, use the AcceptableSubjectAltName in the conf file to check.
+    void SSLConnect(const char * host);
     // shutdown a TLS/SSL connection, also close the underlying Socket connection.
     void Shutdown();
 
